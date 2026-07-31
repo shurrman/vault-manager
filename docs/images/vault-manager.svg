@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title description">
+  <title id="title">vault-manager terminal interface preview</title>
+  <desc id="description">A dark terminal interface with sections, groups, and a group preview with actions.</desc>
+  <style>
+    text {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 18px;
+      fill: #c9d1d9;
+    }
+    .app-title { font-size: 24px; font-weight: 700; fill: #79c0ff; }
+    .section-title { font-size: 20px; font-weight: 700; fill: #79c0ff; }
+    .selected { font-weight: 700; fill: #56d4dd; }
+    .muted { fill: #8b949e; }
+    .label { fill: #8b949e; }
+    .value { fill: #c9d1d9; }
+    .active { font-weight: 700; fill: #ffffff; }
+    .disabled { fill: #6e7681; }
+    .footer { font-size: 16px; fill: #8b949e; }
+  </style>
+
+  <rect width="1400" height="820" rx="16" fill="#0d1117"/>
+  <rect x="1" y="1" width="1398" height="818" rx="15" fill="none" stroke="#30363d" stroke-width="2"/>
+
+  <text x="28" y="48" class="app-title">vault-manager</text>
+  <text x="222" y="48">Groups</text>
+
+  <rect x="24" y="76" width="248" height="662" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+  <rect x="290" y="76" width="370" height="662" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+  <rect x="678" y="76" width="698" height="662" rx="10" fill="#0d1117" stroke="#58a6ff" stroke-width="3"/>
+
+  <text x="44" y="112" class="section-title">Sections</text>
+  <text x="44" y="153">  Status</text>
+  <text x="44" y="187" class="selected">* Groups</text>
+  <text x="44" y="221">  Users</text>
+  <text x="44" y="255">  Policies</text>
+  <text x="44" y="289">  Engines</text>
+  <text x="44" y="323">  SSH</text>
+  <text x="44" y="357">  Auth Methods</text>
+  <text x="44" y="391">  Audit</text>
+  <text x="44" y="425">  Tokens</text>
+
+  <text x="310" y="112" class="section-title">Groups</text>
+  <text x="310" y="153" class="selected">* developers</text>
+  <text x="310" y="187">  operations</text>
+  <text x="310" y="221">  platform</text>
+  <text x="310" y="255">  security</text>
+  <text x="310" y="289">  vault-all-users</text>
+
+  <text x="698" y="112" class="section-title">Preview</text>
+  <text x="698" y="153" font-weight="700" fill="#ffffff">developers</text>
+
+  <text x="698" y="197" class="label">  Name:</text>
+  <text x="890" y="197" class="value">developers</text>
+  <text x="698" y="231" class="label">  Type:</text>
+  <text x="890" y="231" class="value">internal</text>
+  <text x="698" y="265" class="label">  Policies:</text>
+  <text x="890" y="265" class="value">app-read, ssh-access</text>
+  <text x="698" y="299" class="label">  Members:</text>
+  <text x="890" y="299" class="value">alice, bob, carol</text>
+  <text x="698" y="333" class="label">  Nested groups:</text>
+  <text x="890" y="333" class="value">platform</text>
+  <text x="698" y="367" class="label">  Parent groups:</text>
+  <text x="890" y="367" class="value">—</text>
+  <text x="698" y="401" class="label">  Metadata:</text>
+  <text x="890" y="401" class="value">{"owner":"engineering"}</text>
+  <text x="698" y="435" class="label">  ID:</text>
+  <text x="890" y="435" class="muted">8d3f…c921</text>
+
+  <text x="698" y="503" font-weight="700" fill="#c9d1d9">Actions</text>
+  <rect x="696" y="520" width="644" height="38" rx="4" fill="#1f6feb"/>
+  <text x="708" y="546" class="active">&gt; Edit group</text>
+  <text x="708" y="590" class="disabled">  [disabled] Create group</text>
+  <text x="708" y="624" class="disabled">  [disabled] Delete group</text>
+
+  <text x="28" y="782" class="footer">Tab/Shift+Tab or ←→ pane  ↑↓ move  Enter activate  r refresh  ? help  q quit</text>
+</svg>

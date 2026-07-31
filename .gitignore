@@ -1,0 +1,37 @@
+# Local configuration
+.env
+.vault-manager
+
+# Internal agent, design, and editor workflow
+/AGENTS.md
+/CLAUDE.md
+/MEMORY.md
+/.agents/
+/.claude/
+/.codex/
+/.idea/
+/.vscode/
+/graphify/
+/graphify-out/
+/grapighy/
+/.ua
+
+# Project build artifacts
+/bin/
+/dist/
+
+# Go binaries, test, coverage, and profiling artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Go workspace files
+go.work
+go.work.sum

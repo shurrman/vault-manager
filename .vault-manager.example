@@ -1,0 +1,11 @@
+[vault]
+address = "https://vault.example.com:8200"
+token = "replace-me"
+request_timeout = "10s"
+
+[ui]
+color = "auto"
+
+# Optional installation-specific warning shown in the user membership editor.
+# [deployment]
+# membership_notice = "Membership is managed externally and may change after synchronization."

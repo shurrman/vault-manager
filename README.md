@@ -26,18 +26,25 @@ previews when they are useful for diagnostics.
 
 ## Current scope
 
-The MVP reads Status, Groups, Users, Policies, Engines, SSH, Auth Methods,
-Audit, and Tokens. Existing objects can be changed through these editors:
+The manager reads and operates Status, Groups, Users, Policies, Engines, SSH,
+Auth Methods, Audit, and Tokens:
 
-| Object | Enabled changes |
+| Area | Available actions |
 | --- | --- |
-| Internal group | Policies, members, nested groups, metadata |
-| Identity entity | Direct policies, internal group membership, disabled state |
-| Userpass account | Password |
+| Cluster | Seal, submit unseal keys, restore a Raft snapshot |
+| Internal groups | Create, edit policies/membership/metadata, delete |
+| Users | Create userpass account, edit entity access, change password, revoke userpass access, delete entity |
+| ACL policies | Create, edit multiline HCL/JSON body, delete |
+| Secrets engines | Read/list a path, enable, disable |
+| SSH roles | Create, edit complete JSON configuration, delete |
+| Auth methods | Tune, enable, disable |
+| Audit devices | Enable, disable |
+| Tokens | Revoke by accessor |
 
-Create/delete, policy-body editing, engine and KV changes, auth and audit
-changes, token revocation, and cluster operations are visible in the UI but
-disabled. Disabled controls never call Vault.
+Multiline preview values preserve line breaks and indentation. Every editor has
+a lower Help area with field-specific syntax, examples, and operational tips.
+Destructive actions open a confirmation screen with Cancel selected by default;
+Vault still enforces the caller's ACL capabilities for every operation.
 
 ## Build
 
@@ -129,7 +136,9 @@ write operations.
   middle pane selects the first action in the preview;
 - `Enter`: activate an item, action, or editor field;
 - `Space`: toggle a boolean editor field;
-- `Esc`: leave an editor; dirty drafts open Save / Discard / Cancel;
+- `Ctrl+S`: review the current editor action;
+- `Enter` inside a multiline field: insert a newline;
+- `Esc`: accept a multiline field or review/leave an editor;
 - `r`: refresh the active data;
 - `?`: show a short key reminder;
 - `q` or `Ctrl+C`: quit outside text input.
@@ -150,9 +159,13 @@ If a later write fails, successful earlier writes are not rolled back. The UI
 reports applied, failed, and not-attempted operations, reloads the actual Vault
 state, and requires a fresh edit before continuing.
 
-All other editors also compare the current object with the version originally
-loaded and refuse to overwrite concurrent changes. Passwords and tokens are
-never displayed in full, logged, or included in error messages.
+Updates and deletes compare the current object with the version originally
+loaded and refuse to overwrite concurrent changes whenever Vault exposes a
+readable representation. Writes are followed by a read/list verification.
+Commands without a stable readable fingerprint, such as unseal-key submission
+and Raft restore, verify the response or completion status exposed by Vault.
+Passwords, unseal keys, and token values are never displayed in full, logged,
+or included in error messages.
 
 ## Development checks
 

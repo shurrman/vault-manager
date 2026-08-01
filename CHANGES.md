@@ -18,7 +18,14 @@
   multi-group membership changes partially apply.
 - Optional deployment-specific membership notice without a runtime dependency
   on external provisioning systems.
-- Visible disabled controls for deferred and destructive operations.
+- All 26 preview actions enabled: cluster seal/unseal/Raft restore; group,
+  user, policy, engine, SSH role, auth method, and audit device lifecycle;
+  secret-path browsing; and token revocation by accessor.
+- Cancel-by-default confirmation for destructive actions, conflict prechecks,
+  and post-operation verification through fake Vault API tests.
+- Multiline policy/JSON preview and editing without flattening line breaks.
+- Persistent per-field Help zones with examples and operational tips.
+- Separate display and API paths for auth mounts, fixing userpass operations.
 - Secure owner-only TOML configuration and token handling.
 - Read-only cluster connectivity check with `--check`.
 - Static release archives for Linux amd64/arm64, macOS amd64/arm64, and

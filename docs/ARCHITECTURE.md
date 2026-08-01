@@ -70,39 +70,49 @@ membership editor. For example, a site can warn that automation may later
 restore managed memberships. The text is opaque to the application and does
 not alter save behavior.
 
-## MVP write boundary
+## Action model
 
-The first editor supports existing objects only:
+Every published preview action is active. Actions still use the same
+`LoadEditor` / `SaveEditor` boundary, including commands that do not resemble a
+traditional field editor. This gives the reducer one lifecycle for loading,
+editing, review, execution, stale-response rejection, and error recovery.
 
-- internal group policies, members, nested groups, and metadata;
-- entity direct policies, group membership, and disabled state;
-- userpass password changes.
+Action editors fall into three groups:
 
-Engines and policy bodies are preview-only. Create/delete operations, engine
-enable/disable, KV values, auth and audit changes, token revocation, cluster and
-Raft operations, seal/unseal, and bulk changes are not sent by the MVP.
+- structured forms for create, update, tune, enable, and Raft restore;
+- confirmation-only forms for delete, disable, seal, and revoke;
+- read/list forms for browsing a path inside a selected secrets engine.
 
-The corresponding controls remain visible in their natural context but are
-disabled and display `Not available in MVP`. Disabled controls never produce a
-Vault API effect. This invariant is covered by state-machine tests.
+ACL policy bodies and SSH role JSON use a multiline textarea. Preview rows keep
+embedded newlines and indentation instead of flattening them. The lower part of
+every form reserves a bounded Help area for the selected field's syntax,
+examples, and operational tips.
+
+The auth mount model keeps the mount-table path (`userpass/`) separate from the
+runtime API path (`auth/userpass/`) so display/navigation paths cannot leak into
+userpass requests.
 
 ## Safe save flow
 
-The editor stays in the right pane. `Esc` closes a clean draft immediately. A
-dirty draft opens a Save / Discard / Cancel prompt with Cancel selected by
-default.
+The editor stays in the right pane. `Ctrl+S` or `Esc` reviews a dirty draft.
+Confirmation-only actions open review immediately. Cancel is selected by
+default, and no action autosaves.
 
 Before a single-object write, the application:
 
 1. reloads the object;
 2. compares its fingerprint with the editor's original value;
 3. refuses to overwrite an externally changed object;
-4. displays the exact diff;
+4. displays a redacted or compact diff;
 5. sends a minimal update request;
 6. reloads and verifies the saved result.
 
-There is no autosave. Tokens, passwords, and secret values are excluded from
-logs, errors, snapshots, and test fixtures.
+Delete/disable operations use the same precheck and verify absence by a
+follow-up read or list. Commands without a stable readable representation use
+the strongest response/status verification exposed by Vault.
+
+Tokens, passwords, unseal keys, and real secret values are excluded from logs,
+errors, snapshots, and test fixtures.
 
 ### User membership
 
@@ -123,9 +133,9 @@ requires the operator to reload before continuing.
 
 ## Testing boundary
 
-State transitions, fallback markers, disabled controls, conflict detection,
-successful writes, and partial membership writes use automated tests. API
-contracts use an in-process fake HTTP Vault server. A disposable development
+State transitions, fallback markers, cancel-by-default confirmations, conflict
+detection, every action family, and partial membership writes use automated
+tests. API contracts use an in-process fake HTTP Vault server. A disposable development
 Vault remains the integration target for live write testing; the configured
 real cluster is used only for an explicit read-only smoke check.
 

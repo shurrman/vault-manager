@@ -8,7 +8,7 @@
 `vault-manager` 是一个独立的 HashiCorp Vault 集群交互式终端管理器。它只与
 Vault HTTP API 通信，不依赖外部身份源、配置系统或特定部署环境的同步机制。
 
-当前版本：`0.1`。
+当前版本：`0.2`。
 
 预构建归档及其校验和可从
 [GitHub Releases 页面](https://github.com/shurrman/vault-manager/releases/latest)下载。
@@ -24,18 +24,24 @@ Vault HTTP API 通信，不依赖外部身份源、配置系统或特定部署�
 
 ## 当前功能
 
-版本 0.1 可查看 Status、Groups、Users、Policies、Engines、SSH、
-Auth Methods、Audit 和 Tokens。可以通过以下编辑器修改现有对象：
+版本 0.2 可管理 Status、Groups、Users、Policies、Engines、SSH、
+Auth Methods、Audit 和 Tokens：
 
-| 对象 | 可修改内容 |
+| 区域 | 可用操作 |
 | --- | --- |
-| 内部组 | 策略、成员、嵌套组、元数据 |
-| Identity entity | 直接策略、内部组成员关系、disabled 状态 |
-| userpass 账户 | 密码 |
+| 集群 | Seal、提交 unseal 密钥、恢复 Raft 快照 |
+| 内部组 | 创建、编辑策略/成员关系/元数据、删除 |
+| 用户 | 创建 userpass、编辑 entity 和密码、撤销 userpass、删除 entity |
+| ACL 策略 | 创建、编辑多行 HCL/JSON 正文、删除 |
+| Secrets engines | 读取/列出路径、启用、禁用 |
+| SSH 角色 | 创建、编辑完整 JSON 配置、删除 |
+| 认证方法 | 调整、启用、禁用 |
+| 审计设备 | 启用、禁用 |
+| Tokens | 按 accessor 撤销 |
 
-创建和删除对象、编辑策略正文、修改 engine 和 KV、修改 auth 和 audit、吊销
-token，以及集群操作均会显示在界面中，但目前处于禁用状态。禁用的控件不会调用
-Vault API。
+预览中的多行值会保留换行和缩进。每个编辑器底部都有 Help 区域，提供语法、
+示例和操作提示。破坏性操作会显示确认界面，并默认选择 Cancel；Vault 仍会对
+每项操作检查调用 token 的 ACL 权限。
 
 ## 构建
 
@@ -57,11 +63,11 @@ make release
 
 | 操作系统 | 架构 | 归档 |
 | --- | --- | --- |
-| Linux | amd64 | `vault-manager_0.1_linux_amd64.tar.gz` |
-| Linux | arm64 | `vault-manager_0.1_linux_arm64.tar.gz` |
-| macOS | amd64 | `vault-manager_0.1_darwin_amd64.tar.gz` |
-| macOS | arm64 | `vault-manager_0.1_darwin_arm64.tar.gz` |
-| Windows | amd64 | `vault-manager_0.1_windows_amd64.zip` |
+| Linux | amd64 | `vault-manager_0.2_linux_amd64.tar.gz` |
+| Linux | arm64 | `vault-manager_0.2_linux_arm64.tar.gz` |
+| macOS | amd64 | `vault-manager_0.2_darwin_amd64.tar.gz` |
+| macOS | arm64 | `vault-manager_0.2_darwin_arm64.tar.gz` |
+| Windows | amd64 | `vault-manager_0.2_windows_amd64.zip` |
 
 所有二进制文件均使用 `CGO_ENABLED=0` 构建；amd64 构建使用
 `GOAMD64=v1`，arm64 构建使用基础级别 `GOARM64=v8.0`。
@@ -126,8 +132,9 @@ bin/vault-manager --check
   预览中的第一个操作；
 - `Enter`：激活项目、操作或编辑器字段；
 - `Space`：切换编辑器中的布尔字段；
-- `Esc`：退出编辑器；如果草稿已修改，则显示 Save / Discard / Cancel
-  对话框；
+- `Ctrl+S`：检查当前编辑器操作；
+- 在多行字段中按 `Enter`：插入新行；
+- `Esc`：接受多行字段，或检查/退出编辑器；
 - `r`：刷新当前数据；
 - `?`：显示简短的按键提示；
 - `q` 或 `Ctrl+C`：未编辑文本字段时退出。

@@ -10,7 +10,7 @@ HashiCorp Vault cluster. It talks only to the Vault HTTP API: external identity
 sources, provisioning systems, and deployment-specific synchronization are not
 required.
 
-Current release: `0.1`.
+Current release: `0.2`.
 
 Prebuilt archives and their checksums are available on the
 [GitHub Releases page](https://github.com/shurrman/vault-manager/releases/latest).
@@ -66,11 +66,11 @@ make release
 
 | OS | Architecture | Archive |
 | --- | --- | --- |
-| Linux | amd64 | `vault-manager_0.1_linux_amd64.tar.gz` |
-| Linux | arm64 | `vault-manager_0.1_linux_arm64.tar.gz` |
-| macOS | amd64 | `vault-manager_0.1_darwin_amd64.tar.gz` |
-| macOS | arm64 | `vault-manager_0.1_darwin_arm64.tar.gz` |
-| Windows | amd64 | `vault-manager_0.1_windows_amd64.zip` |
+| Linux | amd64 | `vault-manager_0.2_linux_amd64.tar.gz` |
+| Linux | arm64 | `vault-manager_0.2_linux_arm64.tar.gz` |
+| macOS | amd64 | `vault-manager_0.2_darwin_amd64.tar.gz` |
+| macOS | arm64 | `vault-manager_0.2_darwin_arm64.tar.gz` |
+| Windows | amd64 | `vault-manager_0.2_windows_amd64.zip` |
 
 All binaries use `CGO_ENABLED=0`; amd64 builds use `GOAMD64=v1`, and arm64
 builds use the baseline `GOARM64=v8.0`. `dist/checksums.txt` contains SHA-256

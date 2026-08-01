@@ -10,7 +10,7 @@ clúster de HashiCorp Vault. Se comunica únicamente con la API HTTP de Vault:
 no requiere fuentes de identidad externas, sistemas de aprovisionamiento ni
 sincronización específica de una instalación.
 
-Versión actual: `0.1`.
+Versión actual: `0.2`.
 
 Los archivos precompilados y sus sumas de comprobación están disponibles en la
 [página de GitHub Releases](https://github.com/shurrman/vault-manager/releases/latest).
@@ -27,20 +27,25 @@ ID y accessors de Vault siguen disponibles en la vista previa cuando resultan
 
 ## Funcionalidad actual
 
-La versión 0.1 muestra Status, Groups, Users, Policies, Engines, SSH,
-Auth Methods, Audit y Tokens. Los objetos existentes se pueden modificar
-mediante estos editores:
+La versión 0.2 gestiona Status, Groups, Users, Policies, Engines, SSH,
+Auth Methods, Audit y Tokens:
 
-| Objeto | Cambios disponibles |
+| Área | Acciones disponibles |
 | --- | --- |
-| Grupo interno | Políticas, miembros, grupos anidados y metadatos |
-| Identity entity | Políticas directas, pertenencia a grupos internos y estado disabled |
-| Cuenta userpass | Contraseña |
+| Clúster | Seal, envío de claves unseal y restauración de snapshots Raft |
+| Grupos internos | Crear, editar políticas/pertenencia/metadatos y eliminar |
+| Usuarios | Crear userpass, editar entity y contraseña, revocar userpass y eliminar entity |
+| Políticas ACL | Crear, editar contenido HCL/JSON multilínea y eliminar |
+| Secrets engines | Leer/listar una ruta, habilitar y deshabilitar |
+| Roles SSH | Crear, editar la configuración JSON completa y eliminar |
+| Métodos de autenticación | Ajustar, habilitar y deshabilitar |
+| Dispositivos de auditoría | Habilitar y deshabilitar |
+| Tokens | Revocar por accessor |
 
-La creación y eliminación de objetos, la edición del contenido de políticas,
-los cambios en engines y KV, auth y audit, la revocación de tokens y las
-operaciones del clúster aparecen en la interfaz, pero están deshabilitados. Los
-controles deshabilitados nunca realizan llamadas a Vault.
+Los valores multilínea conservan saltos e indentación en la vista previa. Cada
+editor incluye una zona Help inferior con sintaxis, ejemplos y consejos. Las
+acciones destructivas muestran una confirmación con Cancel seleccionado de
+forma predeterminada; Vault sigue aplicando las capacidades ACL del token.
 
 ## Compilación
 
@@ -64,11 +69,11 @@ make release
 
 | SO | Arquitectura | Archivo |
 | --- | --- | --- |
-| Linux | amd64 | `vault-manager_0.1_linux_amd64.tar.gz` |
-| Linux | arm64 | `vault-manager_0.1_linux_arm64.tar.gz` |
-| macOS | amd64 | `vault-manager_0.1_darwin_amd64.tar.gz` |
-| macOS | arm64 | `vault-manager_0.1_darwin_arm64.tar.gz` |
-| Windows | amd64 | `vault-manager_0.1_windows_amd64.zip` |
+| Linux | amd64 | `vault-manager_0.2_linux_amd64.tar.gz` |
+| Linux | arm64 | `vault-manager_0.2_linux_arm64.tar.gz` |
+| macOS | amd64 | `vault-manager_0.2_darwin_amd64.tar.gz` |
+| macOS | arm64 | `vault-manager_0.2_darwin_arm64.tar.gz` |
+| Windows | amd64 | `vault-manager_0.2_windows_amd64.zip` |
 
 Todos los binarios utilizan `CGO_ENABLED=0`; las compilaciones amd64 usan
 `GOAMD64=v1` y las arm64 usan el nivel básico `GOARM64=v8.0`.
@@ -136,8 +141,9 @@ primer elemento. No realiza operaciones de escritura.
   desde el panel central selecciona la primera acción de la vista previa;
 - `Enter`: activar un elemento, una acción o un campo del editor;
 - `Space`: cambiar un campo booleano del editor;
-- `Esc`: salir del editor; los borradores modificados abren el diálogo
-  Save / Discard / Cancel;
+- `Ctrl+S`: revisar la acción actual del editor;
+- `Enter` en un campo multilínea: insertar una línea nueva;
+- `Esc`: aceptar un campo multilínea o revisar/salir del editor;
 - `r`: actualizar los datos activos;
 - `?`: mostrar un recordatorio breve de las teclas;
 - `q` o `Ctrl+C`: salir cuando no se está editando un campo de texto.

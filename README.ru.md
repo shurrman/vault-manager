@@ -10,7 +10,7 @@ HashiCorp Vault. Он взаимодействует только с HTTP API Va
 учётных записей, системы провижининга и специфичная для конкретного окружения
 синхронизация не требуются.
 
-Текущий релиз: `0.2`.
+Текущий релиз: `0.3`.
 
 Готовые архивы и их контрольные суммы доступны на
 [странице GitHub Releases](https://github.com/shurrman/vault-manager/releases/latest).
@@ -26,7 +26,7 @@ HashiCorp Vault. Он взаимодействует только с HTTP API Va
 
 ## Текущие возможности
 
-Версия 0.2 управляет Status, Groups, Users, Policies, Engines, SSH,
+Версия 0.3 управляет Status, Groups, Users, Policies, Engines, SSH,
 Auth Methods, Audit и Tokens:
 
 | Область | Доступные действия |
@@ -74,11 +74,11 @@ make release
 
 | ОС | Архитектура | Архив |
 | --- | --- | --- |
-| Linux | amd64 | `vault-manager_0.2_linux_amd64.tar.gz` |
-| Linux | arm64 | `vault-manager_0.2_linux_arm64.tar.gz` |
-| macOS | amd64 | `vault-manager_0.2_darwin_amd64.tar.gz` |
-| macOS | arm64 | `vault-manager_0.2_darwin_arm64.tar.gz` |
-| Windows | amd64 | `vault-manager_0.2_windows_amd64.zip` |
+| Linux | amd64 | `vault-manager_0.3_linux_amd64.tar.gz` |
+| Linux | arm64 | `vault-manager_0.3_linux_arm64.tar.gz` |
+| macOS | amd64 | `vault-manager_0.3_darwin_amd64.tar.gz` |
+| macOS | arm64 | `vault-manager_0.3_darwin_arm64.tar.gz` |
+| Windows | amd64 | `vault-manager_0.3_windows_amd64.zip` |
 
 Все бинарники собираются с `CGO_ENABLED=0`; для amd64 используется
 `GOAMD64=v1`, а для arm64 — базовый уровень `GOARM64=v8.0`. Файл

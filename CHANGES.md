@@ -1,6 +1,6 @@
 # Changes
 
-## Unreleased
+## 0.3
 
 - Resolved the default configuration path from the user's home directory instead of the process working directory.
 - Added `ui.language` with `en`, `ru`, `es`, and `zh` translations; omitted language defaults to English.

@@ -8,7 +8,7 @@
 `vault-manager` 是一个独立的 HashiCorp Vault 集群交互式终端管理器。它只与
 Vault HTTP API 通信，不依赖外部身份源、配置系统或特定部署环境的同步机制。
 
-当前版本：`0.2`。
+当前版本：`0.3`。
 
 预构建归档及其校验和可从
 [GitHub Releases 页面](https://github.com/shurrman/vault-manager/releases/latest)下载。
@@ -24,7 +24,7 @@ Vault HTTP API 通信，不依赖外部身份源、配置系统或特定部署�
 
 ## 当前功能
 
-版本 0.2 可管理 Status、Groups、Users、Policies、Engines、SSH、
+版本 0.3 可管理 Status、Groups、Users、Policies、Engines、SSH、
 Auth Methods、Audit 和 Tokens：
 
 | 区域 | 可用操作 |
@@ -70,11 +70,11 @@ make release
 
 | 操作系统 | 架构 | 归档 |
 | --- | --- | --- |
-| Linux | amd64 | `vault-manager_0.2_linux_amd64.tar.gz` |
-| Linux | arm64 | `vault-manager_0.2_linux_arm64.tar.gz` |
-| macOS | amd64 | `vault-manager_0.2_darwin_amd64.tar.gz` |
-| macOS | arm64 | `vault-manager_0.2_darwin_arm64.tar.gz` |
-| Windows | amd64 | `vault-manager_0.2_windows_amd64.zip` |
+| Linux | amd64 | `vault-manager_0.3_linux_amd64.tar.gz` |
+| Linux | arm64 | `vault-manager_0.3_linux_arm64.tar.gz` |
+| macOS | amd64 | `vault-manager_0.3_darwin_amd64.tar.gz` |
+| macOS | arm64 | `vault-manager_0.3_darwin_arm64.tar.gz` |
+| Windows | amd64 | `vault-manager_0.3_windows_amd64.zip` |
 
 所有二进制文件均使用 `CGO_ENABLED=0` 构建；amd64 构建使用
 `GOAMD64=v1`，arm64 构建使用基础级别 `GOARM64=v8.0`。

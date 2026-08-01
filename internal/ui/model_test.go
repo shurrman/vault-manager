@@ -43,7 +43,7 @@ func TestDisabledActionNeverProducesEffect(t *testing.T) {
 	model.previewState = stateReady
 	model.items = []domain.Item{{ID: "group-1", Name: "developers"}}
 	model.preview = domain.Preview{Actions: []domain.Action{{
-		ID: "delete", Label: "Delete group", Reason: "Not available in MVP",
+		ID: "delete", Label: "Delete group", Reason: "Unavailable in this context",
 	}}}
 
 	_, cmd := model.activate()
@@ -53,7 +53,7 @@ func TestDisabledActionNeverProducesEffect(t *testing.T) {
 	if backend.loadEditors != 0 || backend.saves != 0 {
 		t.Fatalf("disabled action touched backend: loads=%d saves=%d", backend.loadEditors, backend.saves)
 	}
-	if !strings.Contains(model.status, "Not available in MVP") {
+	if !strings.Contains(model.status, "Unavailable in this context") {
 		t.Fatalf("status does not explain disabled action: %q", model.status)
 	}
 }
@@ -292,7 +292,7 @@ func TestNoColorUsesTextMarkersAndShowsDisabledControls(t *testing.T) {
 	model.previewState = stateReady
 	model.preview = domain.Preview{
 		Rows:    []domain.Row{{Label: "Name", Value: "developers"}},
-		Actions: []domain.Action{{Label: "Delete group", Reason: "Not available in MVP"}},
+		Actions: []domain.Action{{Label: "Delete group", Reason: "Unavailable in this context"}},
 	}
 	rendered := strings.Join(model.previewLines(), "\n")
 	if !strings.Contains(rendered, "[disabled] Delete group") {
@@ -315,5 +315,67 @@ func TestEditorDebugRedactsSecrets(t *testing.T) {
 	}})
 	if strings.Contains(value, "do-not-leak") || !strings.Contains(value, "[redacted]") {
 		t.Fatalf("secret was not redacted: %q", value)
+	}
+}
+
+func TestPreviewPreservesMultilinePolicyBody(t *testing.T) {
+	model := New(&fakeBackend{}, "never")
+	model.height = 24
+	model.pane = PanePreview
+	model.previewState = stateReady
+	model.preview = domain.Preview{Rows: []domain.Row{{
+		Label: "Policy",
+		Value: "# readable comment\npath \"secret/data/app/*\" {\n  capabilities = [\"read\"]\n}",
+	}}}
+
+	rendered := strings.Join(model.previewLines(), "\n")
+	if !strings.Contains(rendered, "Policy:\n    # readable comment\n    path") {
+		t.Fatalf("multiline policy formatting was lost: %q", rendered)
+	}
+	if strings.Contains(rendered, " · ") {
+		t.Fatalf("multiline policy was flattened: %q", rendered)
+	}
+}
+
+func TestEditorShowsPersistentHelpZone(t *testing.T) {
+	model := New(&fakeBackend{}, "never")
+	model.height = 28
+	model.mode = modeEditing
+	model.editor.spec = domain.Editor{
+		Title: "Create policy",
+		Fields: []domain.EditField{{
+			ID: "body", Label: "Policy", Kind: domain.FieldMultiline,
+			Help:     "Vault ACL policy in HCL or JSON.",
+			Examples: []string{"path \"secret/data/app/*\" { ... }"},
+		}},
+		Tips: []string{"Use the minimum capabilities required."},
+	}
+
+	rendered := strings.Join(model.editorLines(), "\n")
+	for _, wanted := range []string{"Help", "Vault ACL policy", "Example:", "Tip:"} {
+		if !strings.Contains(rendered, wanted) {
+			t.Fatalf("help zone does not contain %q: %q", wanted, rendered)
+		}
+	}
+}
+
+func TestConfirmationOnlyActionDefaultsToCancel(t *testing.T) {
+	backend := &fakeBackend{editor: domain.Editor{
+		Section: domain.SectionTokens, ActionID: "revoke", Title: "Revoke token",
+		SubmitLabel: "Revoke", SubmitAlways: true,
+	}}
+	model := New(backend, "never")
+	model.items = []domain.Item{{ID: "accessor-1", Name: "token"}}
+	model.editorRequestID = 1
+
+	model.handleEditorLoaded(editorLoadedMsg{
+		requestID: 1, section: domain.SectionStatus, itemID: "accessor-1", editor: backend.editor,
+	})
+	if model.mode != modeConfirm || model.editor.confirmIndex != 1 {
+		t.Fatalf("confirmation-only action mode=%v index=%d, want confirm/cancel", model.mode, model.editor.confirmIndex)
+	}
+	model.confirmChoice()
+	if model.mode != modeBrowse || backend.saves != 0 {
+		t.Fatalf("default cancel changed backend: mode=%v saves=%d", model.mode, backend.saves)
 	}
 }

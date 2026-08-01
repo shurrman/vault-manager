@@ -474,6 +474,18 @@ func (m *Model) previewLines() []string {
 			lines = append(lines, m.preview.Subtitle)
 		}
 		for index, row := range m.preview.Rows {
+			if strings.Contains(row.Value, "\n") {
+				if index == m.detailIndex {
+					selectedLine = len(lines)
+				}
+				selected := index == m.detailIndex
+				active := m.pane == PanePreview && selected
+				lines = append(lines, m.renderSelection(row.Label+":", selected, active))
+				for _, valueLine := range strings.Split(strings.TrimRight(row.Value, "\n"), "\n") {
+					lines = append(lines, "    "+valueLine)
+				}
+				continue
+			}
 			label := row.Label + ": " + strings.ReplaceAll(row.Value, "\n", " · ")
 			if index == m.detailIndex {
 				selectedLine = len(lines)

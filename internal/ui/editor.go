@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
@@ -26,6 +27,7 @@ type editorState struct {
 	spec         domain.Editor
 	fieldIndex   int
 	input        textinput.Model
+	area         textarea.Model
 	inputActive  bool
 	confirmIndex int
 }
@@ -77,8 +79,14 @@ func (m *Model) handleEditorLoaded(msg editorLoadedMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.editor = editorState{spec: msg.editor}
+	if msg.editor.SubmitAlways && len(msg.editor.Fields) == 0 {
+		m.mode = modeConfirm
+		m.editor.confirmIndex = 1
+		m.status = "Confirmation required"
+		return m, nil
+	}
 	m.mode = modeEditing
-	m.status = "Editor opened; Enter edits the selected field"
+	m.status = "Editor opened; Enter edits the selected field; Ctrl+S reviews"
 	return m, nil
 }
 
@@ -99,17 +107,26 @@ func (m *Model) handleEditorSaved(msg editorSavedMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.mode = modeEditing
-		m.editor.inputActive = false
-		m.editor.input.Blur()
+		m.blurEditorInput()
 		m.status = "Save failed: " + msg.err.Error()
 		return m, nil
+	}
+	refreshList := m.editor.spec.RefreshList
+	successMessage := m.editor.spec.SuccessMessage
+	if successMessage == "" {
+		successMessage = "Saved and verified"
 	}
 	m.preview = msg.preview
 	m.previewState = stateReady
 	m.mode = modeBrowse
 	m.editor = editorState{}
 	m.detailIndex = 0
-	m.status = "Saved and verified"
+	m.status = successMessage
+	if refreshList {
+		cmd := m.loadSection()
+		m.status = successMessage + "; refreshing…"
+		return m, cmd
+	}
 	return m, nil
 }
 
@@ -133,18 +150,39 @@ func (m *Model) handleEditorKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 func (m *Model) handleEditingKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	key := msg.Keystroke()
 	if m.editor.inputActive {
+		field := m.editor.spec.Fields[m.editor.fieldIndex]
+		if field.Kind == domain.FieldMultiline {
+			switch key {
+			case "esc":
+				m.syncInput()
+				m.blurEditorInput()
+				m.status = "Draft updated"
+				return m, nil
+			case "ctrl+s":
+				m.syncInput()
+				m.blurEditorInput()
+				return m.reviewEditor()
+			default:
+				var cmd tea.Cmd
+				m.editor.area, cmd = m.editor.area.Update(msg)
+				m.syncInput()
+				return m, cmd
+			}
+		}
 		switch key {
 		case "enter":
 			m.syncInput()
-			m.editor.inputActive = false
-			m.editor.input.Blur()
+			m.blurEditorInput()
 			m.status = "Draft updated"
 			return m, nil
 		case "esc":
 			m.syncInput()
-			m.editor.inputActive = false
-			m.editor.input.Blur()
+			m.blurEditorInput()
 			return m.leaveEditor(key == "q")
+		case "ctrl+s":
+			m.syncInput()
+			m.blurEditorInput()
+			return m.reviewEditor()
 		default:
 			var cmd tea.Cmd
 			m.editor.input, cmd = m.editor.input.Update(msg)
@@ -168,6 +206,8 @@ func (m *Model) handleEditingKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.toggleBoolean() {
 			m.status = "Draft updated"
 		}
+	case "ctrl+s":
+		return m.reviewEditor()
 	case "esc":
 		return m.leaveEditor(false)
 	case "q":
@@ -189,6 +229,15 @@ func (m *Model) startFieldEdit() (tea.Model, tea.Cmd) {
 		m.toggleBoolean()
 		m.status = "Draft updated"
 		return m, nil
+	case domain.FieldMultiline:
+		area := textarea.New()
+		area.Prompt = ""
+		area.SetWidth(max(20, m.width*47/100-8))
+		area.SetHeight(max(6, min(14, m.height/2)))
+		area.SetValue(field.Value)
+		m.editor.area = area
+		m.editor.inputActive = true
+		return m, m.editor.area.Focus()
 	case domain.FieldText, domain.FieldSecret:
 		input := textinput.New()
 		input.Prompt = ""
@@ -222,19 +271,43 @@ func (m *Model) toggleBoolean() bool {
 	return true
 }
 
+func (m *Model) blurEditorInput() {
+	if len(m.editor.spec.Fields) == 0 {
+		m.editor.inputActive = false
+		return
+	}
+	if m.editor.spec.Fields[m.editor.fieldIndex].Kind == domain.FieldMultiline {
+		m.editor.area.Blur()
+	} else {
+		m.editor.input.Blur()
+	}
+	m.editor.inputActive = false
+}
+
 func (m *Model) syncInput() {
 	if len(m.editor.spec.Fields) == 0 || !m.editor.inputActive {
 		return
 	}
-	m.editor.spec.Fields[m.editor.fieldIndex].Value = m.editor.input.Value()
+	field := &m.editor.spec.Fields[m.editor.fieldIndex]
+	if field.Kind == domain.FieldMultiline {
+		field.Value = m.editor.area.Value()
+		return
+	}
+	field.Value = m.editor.input.Value()
+}
+
+func (m *Model) reviewEditor() (tea.Model, tea.Cmd) {
+	if m.editor.spec.Dirty() || m.editor.spec.SubmitAlways {
+		m.mode = modeConfirm
+		m.editor.confirmIndex = len(m.confirmChoices()) - 1
+		m.status = "Review action"
+	}
+	return m, nil
 }
 
 func (m *Model) leaveEditor(quit bool) (tea.Model, tea.Cmd) {
-	if m.editor.spec.Dirty() {
-		m.mode = modeConfirm
-		m.editor.confirmIndex = 2
-		m.status = "Unsaved changes"
-		return m, nil
+	if m.editor.spec.Dirty() || m.editor.spec.SubmitAlways {
+		return m.reviewEditor()
 	}
 	m.mode = modeBrowse
 	m.editor = editorState{}
@@ -246,19 +319,22 @@ func (m *Model) leaveEditor(quit bool) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleConfirmKey(key string) (tea.Model, tea.Cmd) {
+	choiceCount := len(m.confirmChoices())
 	switch key {
 	case "left":
-		m.editor.confirmIndex = (m.editor.confirmIndex + 2) % 3
+		m.editor.confirmIndex = (m.editor.confirmIndex + choiceCount - 1) % choiceCount
 	case "right":
-		m.editor.confirmIndex = (m.editor.confirmIndex + 1) % 3
+		m.editor.confirmIndex = (m.editor.confirmIndex + 1) % choiceCount
 	case "s":
 		m.editor.confirmIndex = 0
 		return m.confirmChoice()
 	case "d":
-		m.editor.confirmIndex = 1
-		return m.confirmChoice()
+		if choiceCount == 3 {
+			m.editor.confirmIndex = 1
+			return m.confirmChoice()
+		}
 	case "c", "esc", "q":
-		m.editor.confirmIndex = 2
+		m.editor.confirmIndex = choiceCount - 1
 		return m.confirmChoice()
 	case "enter":
 		return m.confirmChoice()
@@ -266,7 +342,30 @@ func (m *Model) handleConfirmKey(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) confirmChoices() []string {
+	submit := m.editor.spec.SubmitLabel
+	if submit == "" {
+		submit = "Save"
+	}
+	if m.editor.spec.SubmitAlways && !m.editor.spec.Dirty() {
+		return []string{submit, "Cancel"}
+	}
+	return []string{submit, "Discard", "Cancel"}
+}
+
 func (m *Model) confirmChoice() (tea.Model, tea.Cmd) {
+	choices := m.confirmChoices()
+	if m.editor.confirmIndex == len(choices)-1 {
+		if len(choices) == 2 {
+			m.mode = modeBrowse
+			m.editor = editorState{}
+			m.status = "Action canceled"
+			return m, nil
+		}
+		m.mode = modeEditing
+		m.status = "Continue editing"
+		return m, nil
+	}
 	switch m.editor.confirmIndex {
 	case 0:
 		backend, ok := m.backend.(domain.EditorBackend)
@@ -290,9 +389,6 @@ func (m *Model) confirmChoice() (tea.Model, tea.Cmd) {
 		m.mode = modeBrowse
 		m.editor = editorState{}
 		m.status = "Changes discarded"
-	default:
-		m.mode = modeEditing
-		m.status = "Continue editing"
 	}
 	return m, nil
 }
@@ -306,6 +402,7 @@ func (m *Model) editorLines() []string {
 	case modeConfirm:
 		return m.confirmLines()
 	case modeEditing:
+		capacity := max(1, m.height-5)
 		lines := []string{m.editor.spec.Title}
 		for _, warning := range m.editor.spec.Warnings {
 			lines = append(lines, "! "+warning)
@@ -316,12 +413,24 @@ func (m *Model) editorLines() []string {
 		selectedLine := 0
 		for index, field := range m.editor.spec.Fields {
 			value := field.Value
+			if field.Kind == domain.FieldMultiline {
+				lineCount := strings.Count(value, "\n") + 1
+				value = fmt.Sprintf("[%d lines · %d bytes]", lineCount, len(value))
+			}
 			if field.Kind == domain.FieldSecret {
 				if value == "" {
 					value = "[empty]"
 				} else {
 					value = "[set]"
 				}
+			}
+			if m.editor.inputActive && index == m.editor.fieldIndex && field.Kind == domain.FieldMultiline {
+				selectedLine = len(lines)
+				lines = append(lines, m.renderSelection(field.Label+":", true, true))
+				for _, areaLine := range strings.Split(m.editor.area.View(), "\n") {
+					lines = append(lines, "  "+areaLine)
+				}
+				continue
 			}
 			if m.editor.inputActive && index == m.editor.fieldIndex {
 				value = m.editor.input.View()
@@ -334,38 +443,68 @@ func (m *Model) editorLines() []string {
 				selectedLine = len(lines)
 			}
 			lines = append(lines, m.renderSelection(line, index == m.editor.fieldIndex, index == m.editor.fieldIndex))
-			if index == m.editor.fieldIndex && field.Help != "" {
-				lines = append(lines, "  "+field.Help)
-			}
 		}
-		return visibleWindow(lines, selectedLine, max(1, m.height-5))
+		help := m.editorHelpLines()
+		helpLimit := max(3, min(7, capacity/2))
+		if len(help) > helpLimit {
+			help = append(append([]string(nil), help[:helpLimit-1]...), "  …")
+		}
+		formCapacity := max(1, capacity-len(help))
+		visible := visibleWindow(lines, selectedLine, formCapacity)
+		return append(visible, help...)
 	default:
 		return m.previewLines()
 	}
 }
 
+func (m *Model) editorHelpLines() []string {
+	if len(m.editor.spec.Fields) == 0 {
+		return nil
+	}
+	field := m.editor.spec.Fields[m.editor.fieldIndex]
+	lines := []string{"", "Help"}
+	if field.Help != "" {
+		lines = append(lines, "  "+field.Help)
+	}
+	for _, example := range field.Examples {
+		exampleLines := strings.Split(example, "\n")
+		lines = append(lines, "  Example: "+exampleLines[0])
+		for _, continuation := range exampleLines[1:] {
+			lines = append(lines, "           "+continuation)
+		}
+	}
+	for _, tip := range m.editor.spec.Tips {
+		lines = append(lines, "  Tip: "+tip)
+	}
+	return lines
+}
+
 func (m *Model) confirmLines() []string {
-	lines := []string{"Unsaved changes"}
+	lines := []string{"Review action"}
 	for _, warning := range m.editor.spec.Warnings {
 		lines = append(lines, "! "+warning)
 	}
-	lines = append(lines, "", "Diff")
-	for _, field := range m.editor.spec.Fields {
-		if field.Value == field.Original {
-			continue
+	if m.editor.spec.Dirty() {
+		lines = append(lines, "", "Diff")
+		for _, field := range m.editor.spec.Fields {
+			if field.Value == field.Original {
+				continue
+			}
+			change := field.Original + " → " + field.Value
+			if field.Kind == domain.FieldSecret {
+				change = "[secret changed]"
+			} else if field.Kind == domain.FieldMultiline {
+				change = fmt.Sprintf("[%d bytes] → [%d bytes]", len(field.Original), len(field.Value))
+			}
+			lines = append(lines, field.Label+": "+change)
 		}
-		change := field.Original + " → " + field.Value
-		if field.Kind == domain.FieldSecret {
-			change = "[secret changed]"
-		}
-		lines = append(lines, field.Label+": "+change)
 	}
 	lines = append(lines, "", "Choose an action")
-	choices := []string{"Save", "Discard", "Cancel"}
+	choices := m.confirmChoices()
 	for index, choice := range choices {
 		lines = append(lines, m.renderSelection(choice, index == m.editor.confirmIndex, index == m.editor.confirmIndex))
 	}
-	return visibleWindow(lines, len(lines)-3+m.editor.confirmIndex, max(1, m.height-5))
+	return visibleWindow(lines, len(lines)-len(choices)+m.editor.confirmIndex, max(1, m.height-5))
 }
 
 func (m *Model) editorTitle() string {
@@ -387,11 +526,14 @@ func (m *Model) footerText() string {
 	switch m.mode {
 	case modeEditing:
 		if m.editor.inputActive {
-			return "Type value  Enter accept  Esc review changes"
+			if m.editor.spec.Fields[m.editor.fieldIndex].Kind == domain.FieldMultiline {
+				return "Edit text  Enter newline  Esc accept  Ctrl+S review"
+			}
+			return "Type value  Enter accept  Ctrl+S review  Esc review changes"
 		}
-		return "↑↓ field  Enter edit/toggle  Space toggle  Esc review changes"
+		return "↑↓ field  Enter edit/toggle  Space toggle  Ctrl+S/Esc review"
 	case modeConfirm:
-		return "←→ choose  Enter confirm  s save  d discard  c/Esc cancel"
+		return "←→ choose  Enter confirm  s submit  d discard  c/Esc cancel"
 	case modeSaving:
 		return "Saving and verifying; input is locked"
 	case modeEditorLoading:

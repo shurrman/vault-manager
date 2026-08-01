@@ -5,10 +5,11 @@ import "context"
 type FieldKind string
 
 const (
-	FieldText     FieldKind = "text"
-	FieldBoolean  FieldKind = "boolean"
-	FieldSecret   FieldKind = "secret"
-	FieldReadOnly FieldKind = "read-only"
+	FieldText      FieldKind = "text"
+	FieldMultiline FieldKind = "multiline"
+	FieldBoolean   FieldKind = "boolean"
+	FieldSecret    FieldKind = "secret"
+	FieldReadOnly  FieldKind = "read-only"
 )
 
 type EditField struct {
@@ -18,17 +19,23 @@ type EditField struct {
 	Original string
 	Kind     FieldKind
 	Help     string
+	Examples []string
 }
 
 type Editor struct {
-	Section     Section
-	Item        Item
-	ActionID    string
-	Title       string
-	Fingerprint string
-	Fields      []EditField
-	Context     map[string]string
-	Warnings    []string
+	Section        Section
+	Item           Item
+	ActionID       string
+	Title          string
+	Fingerprint    string
+	Fields         []EditField
+	Context        map[string]string
+	Warnings       []string
+	Tips           []string
+	SubmitLabel    string
+	SubmitAlways   bool
+	RefreshList    bool
+	SuccessMessage string
 }
 
 func (e Editor) Dirty() bool {

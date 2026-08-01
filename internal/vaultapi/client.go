@@ -36,6 +36,7 @@ type Client struct {
 
 type authMount struct {
 	Path     string
+	APIPath  string
 	Type     string
 	Accessor string
 }
@@ -213,7 +214,7 @@ func (c *Client) listUsers(ctx context.Context) ([]domain.Item, error) {
 		if mount.Type != "userpass" {
 			continue
 		}
-		secret, listErr := c.api.Logical().ListWithContext(ctx, mount.Path+"users")
+		secret, listErr := c.api.Logical().ListWithContext(ctx, mount.APIPath+"users")
 		if listErr != nil {
 			return nil, listErr
 		}
@@ -223,7 +224,7 @@ func (c *Client) listUsers(ctx context.Context) ([]domain.Item, error) {
 				continue
 			}
 			itemID := userpassUserPrefix + url.PathEscape(mount.Path) + ":" + url.PathEscape(username)
-			refs[itemID] = userRef{Mount: mount.Path, Username: username}
+			refs[itemID] = userRef{Mount: mount.APIPath, Username: username}
 			items = append(items, domain.Item{
 				ID:       itemID,
 				Name:     username,
@@ -478,7 +479,7 @@ func (c *Client) previewUser(ctx context.Context, item domain.Item) (domain.Prev
 		}
 		aliasNames = append(aliasNames, label)
 		if mount.Type == "userpass" && name != "" {
-			account, readErr := c.api.Logical().ReadWithContext(ctx, mount.Path+"users/"+url.PathEscape(name))
+			account, readErr := c.api.Logical().ReadWithContext(ctx, mount.APIPath+"users/"+url.PathEscape(name))
 			if readErr != nil {
 				return domain.Preview{}, readErr
 			}
@@ -520,7 +521,7 @@ func (c *Client) previewUserpass(ctx context.Context, title, mount, username, st
 		Rows: rows(
 			"Username", username,
 			"State", state,
-			"Auth mount", strings.TrimSuffix(mount, "/"),
+			"Auth mount", strings.TrimPrefix(strings.TrimSuffix(mount, "/"), "auth/"),
 			"Token policies", joinStrings(stringSlice(data["token_policies"])),
 			"Token TTL", numberString(data["token_ttl"]),
 			"Token max TTL", numberString(data["token_max_ttl"]),
@@ -637,7 +638,11 @@ func (c *Client) authMounts(ctx context.Context) (map[string]authMount, error) {
 	}
 	for path, raw := range secret.Data {
 		data := interfaceMap(raw)
-		mount := authMount{Path: path, Type: stringValue(data["type"]), Accessor: stringValue(data["accessor"])}
+		apiPath := path
+		if !strings.HasPrefix(apiPath, "auth/") {
+			apiPath = "auth/" + apiPath
+		}
+		mount := authMount{Path: path, APIPath: apiPath, Type: stringValue(data["type"]), Accessor: stringValue(data["accessor"])}
 		result[mount.Accessor] = mount
 	}
 	c.mu.Lock()
@@ -679,31 +684,28 @@ func (c *Client) groupNamesFor(ids []string) string {
 }
 
 func actionsFor(section domain.Section) []domain.Action {
-	disabled := func(id, label string) domain.Action {
-		return domain.Action{ID: id, Label: label, Reason: "Not available in MVP"}
-	}
 	enabled := func(id, label string) domain.Action {
 		return domain.Action{ID: id, Label: label, Enabled: true}
 	}
 	switch section {
 	case domain.SectionStatus:
-		return []domain.Action{disabled("seal", "Seal cluster"), disabled("unseal", "Unseal cluster"), disabled("restore", "Restore snapshot")}
+		return []domain.Action{enabled("seal", "Seal cluster"), enabled("unseal", "Unseal cluster"), enabled("restore", "Restore snapshot")}
 	case domain.SectionGroups:
-		return []domain.Action{enabled("edit", "Edit group"), disabled("create", "Create group"), disabled("delete", "Delete group")}
+		return []domain.Action{enabled("edit", "Edit group"), enabled("create", "Create group"), enabled("delete", "Delete group")}
 	case domain.SectionUsers:
-		return []domain.Action{enabled("edit", "Edit access"), enabled("password", "Change password"), disabled("create", "Create user"), disabled("revoke", "Revoke access"), disabled("delete", "Delete entity")}
+		return []domain.Action{enabled("edit", "Edit access"), enabled("password", "Change password"), enabled("create", "Create user"), enabled("revoke", "Revoke access"), enabled("delete", "Delete entity")}
 	case domain.SectionPolicies:
-		return []domain.Action{disabled("edit", "Edit policy body"), disabled("create", "Create policy"), disabled("delete", "Delete policy")}
+		return []domain.Action{enabled("edit", "Edit policy body"), enabled("create", "Create policy"), enabled("delete", "Delete policy")}
 	case domain.SectionEngines:
-		return []domain.Action{disabled("browse", "Browse values"), disabled("enable", "Enable engine"), disabled("disable", "Disable engine")}
+		return []domain.Action{enabled("browse", "Browse values"), enabled("enable", "Enable engine"), enabled("disable", "Disable engine")}
 	case domain.SectionSSH:
-		return []domain.Action{disabled("edit", "Edit role"), disabled("create", "Create role"), disabled("delete", "Delete role")}
+		return []domain.Action{enabled("edit", "Edit role"), enabled("create", "Create role"), enabled("delete", "Delete role")}
 	case domain.SectionAuthMethods:
-		return []domain.Action{disabled("tune", "Tune auth method"), disabled("enable", "Enable auth method"), disabled("disable", "Disable auth method")}
+		return []domain.Action{enabled("tune", "Tune auth method"), enabled("enable", "Enable auth method"), enabled("disable", "Disable auth method")}
 	case domain.SectionAudit:
-		return []domain.Action{disabled("enable", "Enable audit device"), disabled("disable", "Disable audit device")}
+		return []domain.Action{enabled("enable", "Enable audit device"), enabled("disable", "Disable audit device")}
 	case domain.SectionTokens:
-		return []domain.Action{disabled("revoke", "Revoke token")}
+		return []domain.Action{enabled("revoke", "Revoke token")}
 	default:
 		return nil
 	}

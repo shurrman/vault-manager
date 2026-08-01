@@ -28,9 +28,12 @@ func (c *Client) LoadEditor(ctx context.Context, section domain.Section, item do
 	case section == domain.SectionUsers && actionID == "password":
 		editor, err = c.loadPasswordEditor(ctx, item)
 	default:
-		return domain.Editor{}, errors.New("this editor is not available")
+		editor, err = c.loadActionEditor(ctx, section, item, actionID)
 	}
 	if err != nil {
+		if errors.Is(err, errConflict) || errors.Is(err, errValidation) {
+			return domain.Editor{}, err
+		}
 		return domain.Editor{}, publicError("open editor", err)
 	}
 	return editor, nil
@@ -49,7 +52,7 @@ func (c *Client) SaveEditor(ctx context.Context, editor domain.Editor) (domain.P
 	case editor.Section == domain.SectionUsers && editor.ActionID == "password":
 		preview, err = c.savePasswordEditor(ctx, editor)
 	default:
-		return domain.Preview{}, errors.New("this editor cannot be saved")
+		preview, err = c.saveActionEditor(ctx, editor)
 	}
 	if err != nil {
 		var partial *domain.PartialSaveError
@@ -354,7 +357,7 @@ func (c *Client) loadPasswordEditor(ctx context.Context, item domain.Item) (doma
 			mount := c.authMount(stringValue(alias["mount_accessor"]))
 			name := stringValue(alias["name"])
 			if mount.Type == "userpass" && name != "" {
-				found = append(found, userRef{EntityID: ref.EntityID, Mount: mount.Path, Username: name})
+				found = append(found, userRef{EntityID: ref.EntityID, Mount: mount.APIPath, Username: name})
 			}
 		}
 		if len(found) == 0 {
@@ -551,7 +554,22 @@ func fingerprint(value interface{}) string {
 }
 
 func editField(id, label, value string, kind domain.FieldKind, help string) domain.EditField {
-	return domain.EditField{ID: id, Label: label, Value: value, Original: value, Kind: kind, Help: help}
+	field := domain.EditField{ID: id, Label: label, Value: value, Original: value, Kind: kind, Help: help}
+	switch id {
+	case "policies":
+		field.Examples = []string{"default, app-readonly"}
+	case "members":
+		field.Examples = []string{"alice, bob"}
+	case "nested_groups":
+		field.Examples = []string{"engineering, platform"}
+	case "metadata":
+		field.Examples = []string{`{"owner":"platform"}`}
+	case "groups":
+		field.Examples = []string{"engineering, on-call"}
+	case "disabled":
+		field.Examples = []string{"true", "false"}
+	}
+	return field
 }
 
 func fieldValue(editor domain.Editor, id string) string {

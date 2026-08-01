@@ -5,7 +5,7 @@
 
 **分层值浏览器**
 
-![vault-manager 分层值浏览器](docs/images/vault-manager.svg)
+![vault-manager 分层值浏览器](docs/images/vault-manager-browser.svg)
 
 **带格式验证和字段帮助的策略编辑器**
 

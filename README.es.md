@@ -5,7 +5,7 @@
 
 **Explorador jerárquico de valores**
 
-![Explorador jerárquico de valores de vault-manager](docs/images/vault-manager.svg)
+![Explorador jerárquico de valores de vault-manager](docs/images/vault-manager-browser.svg)
 
 **Editor de políticas con validación y ayuda del campo**
 

@@ -5,7 +5,7 @@
 
 **Hierarchical value browser**
 
-![vault-manager hierarchical value browser](docs/images/vault-manager.svg)
+![vault-manager hierarchical value browser](docs/images/vault-manager-browser.svg)
 
 **Structured policy editor with validation and field help**
 

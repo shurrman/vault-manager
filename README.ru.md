@@ -5,7 +5,7 @@
 
 **Иерархический просмотр значений**
 
-![Иерархический просмотр значений vault-manager](docs/images/vault-manager.svg)
+![Иерархический просмотр значений vault-manager](docs/images/vault-manager-browser.svg)
 
 **Редактор политики с валидацией и подсказками по полю**
 

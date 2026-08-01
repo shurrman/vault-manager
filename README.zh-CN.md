@@ -3,7 +3,13 @@
 [English](README.md) · [Русский](README.ru.md) · [Español](README.es.md) ·
 [简体中文](README.zh-CN.md)
 
-![vault-manager 界面预览](docs/images/vault-manager.svg)
+**分层值浏览器**
+
+![vault-manager 分层值浏览器](docs/images/vault-manager.svg)
+
+**带格式验证和字段帮助的策略编辑器**
+
+![vault-manager 带格式验证和帮助的策略编辑器](docs/images/vault-manager-editor.svg)
 
 `vault-manager` 是一个独立的 HashiCorp Vault 集群交互式终端管理器。它只与
 Vault HTTP API 通信，不依赖外部身份源、配置系统或特定部署环境的同步机制。

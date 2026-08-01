@@ -3,7 +3,13 @@
 [English](README.md) · [Русский](README.ru.md) · [Español](README.es.md) ·
 [简体中文](README.zh-CN.md)
 
-![Vista previa de la interfaz de vault-manager](docs/images/vault-manager.svg)
+**Explorador jerárquico de valores**
+
+![Explorador jerárquico de valores de vault-manager](docs/images/vault-manager.svg)
+
+**Editor de políticas con validación y ayuda del campo**
+
+![Editor de políticas de vault-manager con validación y ayuda](docs/images/vault-manager-editor.svg)
 
 `vault-manager` es un gestor de terminal interactivo e independiente para un
 clúster de HashiCorp Vault. Se comunica únicamente con la API HTTP de Vault:

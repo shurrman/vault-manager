@@ -3,7 +3,13 @@
 [English](README.md) · [Русский](README.ru.md) · [Español](README.es.md) ·
 [简体中文](README.zh-CN.md)
 
-![Пример интерфейса vault-manager](docs/images/vault-manager.svg)
+**Иерархический просмотр значений**
+
+![Иерархический просмотр значений vault-manager](docs/images/vault-manager.svg)
+
+**Редактор политики с валидацией и подсказками по полю**
+
+![Редактор политики vault-manager с валидацией и подсказками](docs/images/vault-manager-editor.svg)
 
 `vault-manager` — независимый интерактивный терминальный менеджер кластера
 HashiCorp Vault. Он взаимодействует только с HTTP API Vault: внешние источники

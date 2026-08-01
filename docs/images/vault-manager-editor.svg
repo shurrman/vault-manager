@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title description">
+  <title id="title">vault-manager structured policy editor</title>
+  <desc id="description">The policy editor showing multiline content, a precise validation error, a correct example, and field help.</desc>
+  <style>
+    text {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 18px;
+      fill: #c9d1d9;
+    }
+    .app-title { font-size: 24px; font-weight: 700; fill: #79c0ff; }
+    .section-title { font-size: 20px; font-weight: 700; fill: #79c0ff; }
+    .selected { font-weight: 700; fill: #56d4dd; }
+    .muted { fill: #8b949e; }
+    .active { font-weight: 700; fill: #ffffff; }
+    .heading { font-weight: 700; fill: #c9d1d9; }
+    .code { fill: #e6edf3; }
+    .error { font-weight: 700; fill: #ff7b72; }
+    .help-title { font-weight: 700; fill: #d2a8ff; }
+    .tip { fill: #a5d6ff; }
+    .footer { font-size: 16px; fill: #8b949e; }
+  </style>
+
+  <rect width="1400" height="820" rx="16" fill="#0d1117"/>
+  <rect x="1" y="1" width="1398" height="818" rx="15" fill="none" stroke="#30363d" stroke-width="2"/>
+
+  <text x="28" y="48" class="app-title">vault-manager</text>
+  <text x="260" y="48">Policies · validated structured editor</text>
+
+  <rect x="24" y="76" width="248" height="662" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+  <rect x="290" y="76" width="370" height="662" rx="10" fill="#0d1117" stroke="#30363d" stroke-width="2"/>
+  <rect x="678" y="76" width="698" height="662" rx="10" fill="#0d1117" stroke="#58a6ff" stroke-width="3"/>
+
+  <text x="44" y="112" class="section-title">Sections</text>
+  <text x="44" y="153">  Status</text>
+  <text x="44" y="187">  Groups</text>
+  <text x="44" y="221">  Users</text>
+  <text x="44" y="255" class="selected">* Policies</text>
+  <text x="44" y="289">  Engines</text>
+  <text x="44" y="323">  SSH</text>
+  <text x="44" y="357">  Auth Methods</text>
+  <text x="44" y="391">  Audit</text>
+  <text x="44" y="425">  Tokens</text>
+
+  <text x="310" y="112" class="section-title">Policies</text>
+  <text x="310" y="153" class="selected">* app-readonly</text>
+  <text x="310" y="187">  default</text>
+  <text x="310" y="221">  engineering</text>
+  <text x="310" y="255">  ssh-access</text>
+  <text x="310" y="289">  vault-admins</text>
+
+  <text x="698" y="112" class="section-title">Editor</text>
+  <text x="698" y="153" class="heading">Edit ACL policy app-readonly</text>
+
+  <rect x="696" y="176" width="644" height="38" rx="4" fill="#1f6feb"/>
+  <text x="708" y="202" class="active">&gt; Policy:</text>
+  <text x="724" y="244" class="code">path "secret/data/app/*" {</text>
+  <text x="724" y="278" class="code">  capabilities = ["read"</text>
+  <text x="724" y="312" class="code">}</text>
+
+  <line x1="698" y1="354" x2="1340" y2="354" stroke="#30363d" stroke-width="2"/>
+  <text x="698" y="392" class="help-title">Help</text>
+  <text x="716" y="428" class="error">! line 2, column 25: expected comma or closing bracket</text>
+  <text x="716" y="464">Vault ACL policy in HCL or JSON.</text>
+  <text x="716" y="500" class="muted">Example: path "secret/data/app/*" {</text>
+  <text x="818" y="534" class="muted">capabilities = ["read"]</text>
+  <text x="818" y="568" class="muted">}</text>
+  <text x="716" y="612" class="tip">Tip: Policy changes affect new authorization checks immediately.</text>
+
+  <text x="28" y="762" class="error">Invalid format: Policy</text>
+  <text x="28" y="792" class="footer">Edit text  Enter newline  Esc accept  Ctrl+S review</text>
+</svg>

@@ -11,12 +11,15 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"vault-manager/internal/domain"
+	"vault-manager/internal/validation"
 )
 
 type appMode int
 
 const (
 	modeBrowse appMode = iota
+	modeBrowserLoading
+	modeBrowser
 	modeEditorLoading
 	modeEditing
 	modeConfirm
@@ -24,12 +27,14 @@ const (
 )
 
 type editorState struct {
-	spec         domain.Editor
-	fieldIndex   int
-	input        textinput.Model
-	area         textarea.Model
-	inputActive  bool
-	confirmIndex int
+	spec            domain.Editor
+	fieldIndex      int
+	input           textinput.Model
+	area            textarea.Model
+	inputActive     bool
+	confirmIndex    int
+	suggestionIndex int
+	validationError string
 }
 
 type editorLoadedMsg struct {
@@ -169,6 +174,26 @@ func (m *Model) handleEditingKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 		}
+		if field.Kind == domain.FieldList {
+			candidates := m.listSuggestions()
+			switch key {
+			case "up":
+				if len(candidates) > 0 {
+					m.editor.suggestionIndex = clamp(m.editor.suggestionIndex-1, 0, len(candidates)-1)
+					return m, nil
+				}
+			case "down":
+				if len(candidates) > 0 {
+					m.editor.suggestionIndex = clamp(m.editor.suggestionIndex+1, 0, len(candidates)-1)
+					return m, nil
+				}
+			case "enter", "tab":
+				if len(candidates) > 0 {
+					m.acceptListSuggestion(candidates[m.editor.suggestionIndex])
+					return m, nil
+				}
+			}
+		}
 		switch key {
 		case "enter":
 			m.syncInput()
@@ -187,6 +212,8 @@ func (m *Model) handleEditingKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.editor.input, cmd = m.editor.input.Update(msg)
 			m.syncInput()
+			m.editor.suggestionIndex = 0
+			m.editor.validationError = ""
 			return m, cmd
 		}
 	}
@@ -221,6 +248,8 @@ func (m *Model) startFieldEdit() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	field := &m.editor.spec.Fields[m.editor.fieldIndex]
+	m.editor.validationError = ""
+	m.editor.suggestionIndex = 0
 	switch field.Kind {
 	case domain.FieldReadOnly:
 		m.status = field.Label + ": read-only"
@@ -238,7 +267,7 @@ func (m *Model) startFieldEdit() (tea.Model, tea.Cmd) {
 		m.editor.area = area
 		m.editor.inputActive = true
 		return m, m.editor.area.Focus()
-	case domain.FieldText, domain.FieldSecret:
+	case domain.FieldText, domain.FieldSecret, domain.FieldList:
 		input := textinput.New()
 		input.Prompt = ""
 		input.SetWidth(max(20, m.width*47/100-12))
@@ -297,6 +326,15 @@ func (m *Model) syncInput() {
 }
 
 func (m *Model) reviewEditor() (tea.Model, tea.Cmd) {
+	for index, field := range m.editor.spec.Fields {
+		if err := validation.Field(field.Format, field.Value); err != nil {
+			m.editor.fieldIndex = index
+			m.editor.validationError = m.text.Text(field.Label) + ": " + err.Error()
+			m.status = "Invalid format: " + m.editor.validationError
+			return m, nil
+		}
+	}
+	m.editor.validationError = ""
 	if m.editor.spec.Dirty() || m.editor.spec.SubmitAlways {
 		m.mode = modeConfirm
 		m.editor.confirmIndex = len(m.confirmChoices()) - 1
@@ -396,16 +434,16 @@ func (m *Model) confirmChoice() (tea.Model, tea.Cmd) {
 func (m *Model) editorLines() []string {
 	switch m.mode {
 	case modeEditorLoading:
-		return []string{"[opening editor…]"}
+		return []string{m.text.Text("[opening editor…]")}
 	case modeSaving:
-		return []string{"[saving and verifying…]"}
+		return []string{m.text.Text("[saving and verifying…]")}
 	case modeConfirm:
 		return m.confirmLines()
 	case modeEditing:
 		capacity := max(1, m.height-5)
-		lines := []string{m.editor.spec.Title}
+		lines := []string{m.text.Text(m.editor.spec.Title)}
 		for _, warning := range m.editor.spec.Warnings {
-			lines = append(lines, "! "+warning)
+			lines = append(lines, "! "+m.text.Text(warning))
 		}
 		if len(m.editor.spec.Warnings) > 0 {
 			lines = append(lines, "")
@@ -426,7 +464,7 @@ func (m *Model) editorLines() []string {
 			}
 			if m.editor.inputActive && index == m.editor.fieldIndex && field.Kind == domain.FieldMultiline {
 				selectedLine = len(lines)
-				lines = append(lines, m.renderSelection(field.Label+":", true, true))
+				lines = append(lines, m.renderSelection(m.text.Text(field.Label)+":", true, true))
 				for _, areaLine := range strings.Split(m.editor.area.View(), "\n") {
 					lines = append(lines, "  "+areaLine)
 				}
@@ -436,13 +474,16 @@ func (m *Model) editorLines() []string {
 				value = m.editor.input.View()
 			}
 			if field.Kind == domain.FieldReadOnly {
-				value += "  [read-only]"
+				value += "  " + m.text.Text("[read-only]")
 			}
-			line := field.Label + ": " + value
+			line := m.text.Text(field.Label) + ": " + value
 			if index == m.editor.fieldIndex {
 				selectedLine = len(lines)
 			}
 			lines = append(lines, m.renderSelection(line, index == m.editor.fieldIndex, index == m.editor.fieldIndex))
+			if m.editor.inputActive && index == m.editor.fieldIndex && field.Kind == domain.FieldList {
+				lines = append(lines, m.listSuggestionLines()...)
+			}
 		}
 		help := m.editorHelpLines()
 		helpLimit := max(3, min(7, capacity/2))
@@ -462,30 +503,33 @@ func (m *Model) editorHelpLines() []string {
 		return nil
 	}
 	field := m.editor.spec.Fields[m.editor.fieldIndex]
-	lines := []string{"", "Help"}
+	lines := []string{"", m.text.Text("Help")}
+	if m.editor.validationError != "" {
+		lines = append(lines, "  ! "+m.editor.validationError)
+	}
 	if field.Help != "" {
-		lines = append(lines, "  "+field.Help)
+		lines = append(lines, "  "+m.text.Text(field.Help))
 	}
 	for _, example := range field.Examples {
 		exampleLines := strings.Split(example, "\n")
-		lines = append(lines, "  Example: "+exampleLines[0])
+		lines = append(lines, "  "+m.text.Text("Example")+": "+exampleLines[0])
 		for _, continuation := range exampleLines[1:] {
 			lines = append(lines, "           "+continuation)
 		}
 	}
 	for _, tip := range m.editor.spec.Tips {
-		lines = append(lines, "  Tip: "+tip)
+		lines = append(lines, "  "+m.text.Text("Tip")+": "+m.text.Text(tip))
 	}
 	return lines
 }
 
 func (m *Model) confirmLines() []string {
-	lines := []string{"Review action"}
+	lines := []string{m.text.Text("Review action")}
 	for _, warning := range m.editor.spec.Warnings {
-		lines = append(lines, "! "+warning)
+		lines = append(lines, "! "+m.text.Text(warning))
 	}
 	if m.editor.spec.Dirty() {
-		lines = append(lines, "", "Diff")
+		lines = append(lines, "", m.text.Text("Diff"))
 		for _, field := range m.editor.spec.Fields {
 			if field.Value == field.Original {
 				continue
@@ -496,13 +540,13 @@ func (m *Model) confirmLines() []string {
 			} else if field.Kind == domain.FieldMultiline {
 				change = fmt.Sprintf("[%d bytes] → [%d bytes]", len(field.Original), len(field.Value))
 			}
-			lines = append(lines, field.Label+": "+change)
+			lines = append(lines, m.text.Text(field.Label)+": "+change)
 		}
 	}
-	lines = append(lines, "", "Choose an action")
+	lines = append(lines, "", m.text.Text("Choose an action"))
 	choices := m.confirmChoices()
 	for index, choice := range choices {
-		lines = append(lines, m.renderSelection(choice, index == m.editor.confirmIndex, index == m.editor.confirmIndex))
+		lines = append(lines, m.renderSelection(m.text.Text(choice), index == m.editor.confirmIndex, index == m.editor.confirmIndex))
 	}
 	return visibleWindow(lines, len(lines)-len(choices)+m.editor.confirmIndex, max(1, m.height-5))
 }
@@ -510,36 +554,42 @@ func (m *Model) confirmLines() []string {
 func (m *Model) editorTitle() string {
 	switch m.mode {
 	case modeEditorLoading:
-		return "Editor"
+		return m.text.Text("Editor")
 	case modeEditing:
-		return "Editor"
+		return m.text.Text("Editor")
 	case modeConfirm:
-		return "Confirm"
+		return m.text.Text("Confirm")
+	case modeBrowserLoading, modeBrowser:
+		return m.browserTitle()
 	case modeSaving:
-		return "Saving"
+		return m.text.Text("Saving")
 	default:
-		return "Preview"
+		return m.text.Text("Preview")
 	}
 }
 
 func (m *Model) footerText() string {
 	switch m.mode {
+	case modeBrowserLoading:
+		return m.text.Text("Loading values…")
+	case modeBrowser:
+		return m.text.Text("↑↓ move  Enter open  Esc/← parent  r refresh  q close")
 	case modeEditing:
 		if m.editor.inputActive {
 			if m.editor.spec.Fields[m.editor.fieldIndex].Kind == domain.FieldMultiline {
-				return "Edit text  Enter newline  Esc accept  Ctrl+S review"
+				return m.text.Text("Edit text  Enter newline  Esc accept  Ctrl+S review")
 			}
-			return "Type value  Enter accept  Ctrl+S review  Esc review changes"
+			return m.text.Text("Type value  Enter accept  Ctrl+S review  Esc review changes")
 		}
-		return "↑↓ field  Enter edit/toggle  Space toggle  Ctrl+S/Esc review"
+		return m.text.Text("↑↓ field  Enter edit/toggle  Space toggle  Ctrl+S/Esc review")
 	case modeConfirm:
-		return "←→ choose  Enter confirm  s submit  d discard  c/Esc cancel"
+		return m.text.Text("←→ choose  Enter confirm  s submit  d discard  c/Esc cancel")
 	case modeSaving:
-		return "Saving and verifying; input is locked"
+		return m.text.Text("Saving and verifying; input is locked")
 	case modeEditorLoading:
-		return "Opening editor…"
+		return m.text.Text("Opening editor…")
 	default:
-		return "Tab/Shift+Tab or ←→ pane  ↑↓ move  Enter activate  r refresh  ? help  q quit"
+		return m.text.Text("Tab/Shift+Tab or ←→ pane  ↑↓ move  Enter activate  r refresh  ? help  q quit")
 	}
 }
 

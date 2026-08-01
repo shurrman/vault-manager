@@ -386,6 +386,8 @@ func (c *Client) previewStatus(ctx context.Context, item domain.Item) (domain.Pr
 			"Enterprise", boolString(health.Enterprise),
 			"Server time", time.Unix(health.ServerTimeUTC, 0).UTC().Format(time.RFC3339),
 		)
+		markDanger(preview.Rows, "Sealed", health.Sealed)
+		markDanger(preview.Rows, "Standby", health.Standby)
 	case "leader":
 		leader, err := c.api.Sys().LeaderWithContext(ctx)
 		if err != nil {
@@ -414,6 +416,7 @@ func (c *Client) previewStatus(ctx context.Context, item domain.Item) (domain.Pr
 			"Storage", seal.StorageType,
 			"Version", seal.Version,
 		)
+		markDanger(preview.Rows, "Sealed", seal.Sealed)
 	case "raft":
 		secret, err := c.api.Logical().ReadWithContext(ctx, "sys/storage/raft/configuration")
 		if err != nil {
@@ -536,10 +539,7 @@ func (c *Client) previewPolicy(ctx context.Context, item domain.Item) (domain.Pr
 		return domain.Preview{}, err
 	}
 	data := secretData(secret)
-	body := stringValue(data["policy"])
-	if body == "" {
-		body = stringValue(data["rules"])
-	}
+	body := readablePolicy(policyBody(data))
 	return domain.Preview{Title: item.Name, Rows: []domain.Row{
 		{ID: "name", Label: "Name", Value: item.Name},
 		{ID: "body", Label: "Policy", Value: body},
@@ -689,7 +689,7 @@ func actionsFor(section domain.Section) []domain.Action {
 	}
 	switch section {
 	case domain.SectionStatus:
-		return []domain.Action{enabled("seal", "Seal cluster"), enabled("unseal", "Unseal cluster"), enabled("restore", "Restore snapshot")}
+		return []domain.Action{enabled("seal", "Seal cluster"), enabled("unseal", "Unseal cluster"), enabled("snapshot", "Save snapshot"), enabled("restore", "Restore snapshot")}
 	case domain.SectionGroups:
 		return []domain.Action{enabled("edit", "Edit group"), enabled("create", "Create group"), enabled("delete", "Delete group")}
 	case domain.SectionUsers:
@@ -872,6 +872,17 @@ func rows(values ...string) []domain.Row {
 	return result
 }
 
+func markDanger(rows []domain.Row, label string, danger bool) {
+	if !danger {
+		return
+	}
+	for index := range rows {
+		if rows[index].Label == label {
+			rows[index].Severity = domain.SeverityDanger
+		}
+	}
+}
+
 func mapRows(data map[string]interface{}) []domain.Row {
 	keys := make([]string, 0, len(data))
 	for key := range data {
@@ -880,7 +891,11 @@ func mapRows(data map[string]interface{}) []domain.Row {
 	sort.Strings(keys)
 	result := make([]domain.Row, 0, len(keys))
 	for _, key := range keys {
-		result = append(result, domain.Row{ID: key, Label: key, Value: pretty(data[key])})
+		value := pretty(data[key])
+		if text, ok := data[key].(string); ok {
+			value = text
+		}
+		result = append(result, domain.Row{ID: key, Label: key, Value: value})
 	}
 	return result
 }

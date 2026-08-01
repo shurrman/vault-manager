@@ -7,9 +7,19 @@ type FieldKind string
 const (
 	FieldText      FieldKind = "text"
 	FieldMultiline FieldKind = "multiline"
+	FieldList      FieldKind = "list"
 	FieldBoolean   FieldKind = "boolean"
 	FieldSecret    FieldKind = "secret"
 	FieldReadOnly  FieldKind = "read-only"
+)
+
+type FieldFormat string
+
+const (
+	FormatNone       FieldFormat = ""
+	FormatJSONObject FieldFormat = "json-object"
+	FormatStringMap  FieldFormat = "string-map"
+	FormatPolicy     FieldFormat = "policy"
 )
 
 type EditField struct {
@@ -18,6 +28,8 @@ type EditField struct {
 	Value    string
 	Original string
 	Kind     FieldKind
+	Format   FieldFormat
+	Options  []string
 	Help     string
 	Examples []string
 }

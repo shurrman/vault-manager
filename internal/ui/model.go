@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
@@ -10,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"vault-manager/internal/domain"
+	"vault-manager/internal/i18n"
 )
 
 type Pane int
@@ -31,6 +31,7 @@ const (
 
 type Model struct {
 	backend domain.Backend
+	text    i18n.Translator
 
 	width  int
 	height int
@@ -51,10 +52,12 @@ type Model struct {
 	listRequestID    uint64
 	previewRequestID uint64
 	editorRequestID  uint64
+	browserRequestID uint64
 	status           string
 
-	mode   appMode
-	editor editorState
+	mode    appMode
+	editor  editorState
+	browser browserState
 }
 
 type listLoadedMsg struct {
@@ -72,10 +75,15 @@ type previewLoadedMsg struct {
 	err       error
 }
 
-func New(backend domain.Backend, colorMode string) *Model {
+func New(backend domain.Backend, colorMode string, languages ...string) *Model {
 	color := colorMode == "always" || (colorMode == "auto" && os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb")
+	language := "en"
+	if len(languages) > 0 {
+		language = languages[0]
+	}
 	return &Model{
 		backend:      backend,
+		text:         i18n.New(language),
 		color:        color,
 		pane:         PaneSections,
 		listState:    stateIdle,
@@ -95,6 +103,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = typed.Height
 		return m, nil
 	case tea.KeyPressMsg:
+		if m.mode == modeBrowserLoading || m.mode == modeBrowser {
+			return m.handleBrowserKey(typed)
+		}
 		if m.mode != modeBrowse {
 			return m.handleEditorKey(typed)
 		}
@@ -107,6 +118,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleEditorLoaded(typed)
 	case editorSavedMsg:
 		return m.handleEditorSaved(typed)
+	case browserLoadedMsg:
+		return m.handleBrowserLoaded(typed)
 	}
 	return m, nil
 }
@@ -268,6 +281,9 @@ func (m *Model) activate() (tea.Model, tea.Cmd) {
 	rowCount := len(m.preview.Rows)
 	if m.detailIndex < rowCount {
 		row := m.preview.Rows[m.detailIndex]
+		if m.section() == domain.SectionEngines && row.ID == "path" {
+			return m, m.openBrowser()
+		}
 		if row.Editable {
 			m.status = "Editor will open here"
 		} else {
@@ -283,6 +299,9 @@ func (m *Model) activate() (tea.Model, tea.Cmd) {
 	if !action.Enabled {
 		m.status = action.Label + ": " + action.Reason
 		return m, nil
+	}
+	if action.ID == "browse" {
+		return m, m.openBrowser()
 	}
 	return m, m.openEditor(action)
 }
@@ -307,7 +326,7 @@ func (m *Model) handleListLoaded(msg listLoadedMsg) (tea.Model, tea.Cmd) {
 		m.status = "No items"
 		return m, nil
 	}
-	m.status = fmt.Sprintf("Loaded %d %s", len(m.items), strings.ToLower(msg.section.Label()))
+	m.status = m.text.Format("Loaded %d items", len(m.items))
 	return m, m.loadPreview()
 }
 
@@ -370,31 +389,31 @@ func (m *Model) section() domain.Section {
 
 func (m *Model) render() string {
 	if m.width == 0 || m.height == 0 {
-		return "Starting vault-manager…"
+		return m.text.Text("Starting vault-manager…")
 	}
 	if m.width < 80 || m.height < 20 {
-		return fmt.Sprintf("vault-manager needs at least 80x20; current terminal is %dx%d", m.width, m.height)
+		return m.text.Format("vault-manager needs at least 80x20; current terminal is %dx%d", m.width, m.height)
 	}
 
 	headerStyle := lipgloss.NewStyle().Bold(true)
 	if m.color {
 		headerStyle = headerStyle.Foreground(lipgloss.Color("6"))
 	}
-	header := headerStyle.Render("vault-manager") + "  " + m.section().Label()
+	header := headerStyle.Render("vault-manager") + "  " + m.text.Text(m.section().Label())
 
 	bodyHeight := m.height - 2
 	leftWidth := max(18, m.width*22/100)
 	middleWidth := max(26, m.width*31/100)
 	rightWidth := m.width - leftWidth - middleWidth
 
-	left := m.renderPane("Sections", m.sectionLines(), leftWidth, bodyHeight, m.pane == PaneSections)
-	middle := m.renderPane(m.section().Label(), m.itemLines(), middleWidth, bodyHeight, m.pane == PaneItems)
+	left := m.renderPane(m.text.Text("Sections"), m.sectionLines(), leftWidth, bodyHeight, m.pane == PaneSections)
+	middle := m.renderPane(m.text.Text(m.section().Label()), m.itemLines(), middleWidth, bodyHeight, m.pane == PaneItems)
 	right := m.renderPane(m.editorTitle(), m.previewLines(), rightWidth, bodyHeight, m.pane == PanePreview)
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, middle, right)
 
 	footer := m.footerText()
 	if m.status != "" {
-		footer = m.status + "  ·  " + footer
+		footer = m.text.Text(m.status) + "  ·  " + footer
 	}
 	footer = truncate(footer, m.width)
 	return header + "\n" + body + "\n" + footer
@@ -426,7 +445,7 @@ func (m *Model) renderPane(title string, lines []string, width, height int, acti
 func (m *Model) sectionLines() []string {
 	lines := make([]string, 0, len(domain.Sections))
 	for index, section := range domain.Sections {
-		lines = append(lines, m.renderSelection(section.Label(), index == m.sectionIndex, m.pane == PaneSections && index == m.sectionIndex))
+		lines = append(lines, m.renderSelection(m.text.Text(section.Label()), index == m.sectionIndex, m.pane == PaneSections && index == m.sectionIndex))
 	}
 	return lines
 }
@@ -434,12 +453,12 @@ func (m *Model) sectionLines() []string {
 func (m *Model) itemLines() []string {
 	switch m.listState {
 	case stateLoading:
-		return []string{"[loading…]"}
+		return []string{m.text.Text("[loading…]")}
 	case stateError:
-		return []string{m.listError, "", "Press r to retry"}
+		return []string{m.listError, "", m.text.Text("Press r to retry")}
 	case stateReady:
 		if len(m.items) == 0 {
-			return []string{"[no items]"}
+			return []string{m.text.Text("[no items]")}
 		}
 		lines := make([]string, 0, len(m.items))
 		for index, item := range m.items {
@@ -451,27 +470,30 @@ func (m *Model) itemLines() []string {
 		}
 		return visibleWindow(lines, m.itemIndex, max(1, m.height-5))
 	default:
-		return []string{"[not loaded]"}
+		return []string{m.text.Text("[not loaded]")}
 	}
 }
 
 func (m *Model) previewLines() []string {
+	if m.mode == modeBrowserLoading || m.mode == modeBrowser {
+		return m.browserLines()
+	}
 	if m.mode != modeBrowse {
 		return m.editorLines()
 	}
 	switch m.previewState {
 	case stateLoading:
-		return []string{"[loading…]"}
+		return []string{m.text.Text("[loading…]")}
 	case stateError:
-		return []string{m.previewError, "", "Press r to retry"}
+		return []string{m.previewError, "", m.text.Text("Press r to retry")}
 	case stateReady:
 		lines := make([]string, 0, len(m.preview.Rows)+len(m.preview.Actions)+2)
 		selectedLine := 0
 		if m.preview.Title != "" {
-			lines = append(lines, m.preview.Title)
+			lines = append(lines, m.text.Text(m.preview.Title))
 		}
 		if m.preview.Subtitle != "" {
-			lines = append(lines, m.preview.Subtitle)
+			lines = append(lines, m.text.Text(m.preview.Subtitle))
 		}
 		for index, row := range m.preview.Rows {
 			if strings.Contains(row.Value, "\n") {
@@ -480,26 +502,26 @@ func (m *Model) previewLines() []string {
 				}
 				selected := index == m.detailIndex
 				active := m.pane == PanePreview && selected
-				lines = append(lines, m.renderSelection(row.Label+":", selected, active))
+				lines = append(lines, m.renderRowSelection(m.text.Text(row.Label)+":", selected, active, row.Severity))
 				for _, valueLine := range strings.Split(strings.TrimRight(row.Value, "\n"), "\n") {
 					lines = append(lines, "    "+valueLine)
 				}
 				continue
 			}
-			label := row.Label + ": " + strings.ReplaceAll(row.Value, "\n", " · ")
+			label := m.text.Text(row.Label) + ": " + m.text.Text(strings.ReplaceAll(row.Value, "\n", " · "))
 			if index == m.detailIndex {
 				selectedLine = len(lines)
 			}
-			lines = append(lines, m.renderSelection(label, index == m.detailIndex, m.pane == PanePreview && index == m.detailIndex))
+			lines = append(lines, m.renderRowSelection(label, index == m.detailIndex, m.pane == PanePreview && index == m.detailIndex, row.Severity))
 		}
 		if len(m.preview.Actions) > 0 {
-			lines = append(lines, "", "Actions")
+			lines = append(lines, "", m.text.Text("Actions"))
 		}
 		for actionIndex, action := range m.preview.Actions {
 			index := len(m.preview.Rows) + actionIndex
-			label := action.Label
+			label := m.text.Text(action.Label)
 			if !action.Enabled {
-				label = "[disabled] " + label
+				label = m.text.Text("[disabled]") + " " + label
 			}
 			if index == m.detailIndex {
 				selectedLine = len(lines)
@@ -508,7 +530,7 @@ func (m *Model) previewLines() []string {
 		}
 		return visibleWindow(lines, selectedLine, max(1, m.height-5))
 	default:
-		return []string{"[nothing selected]"}
+		return []string{m.text.Text("[nothing selected]")}
 	}
 }
 

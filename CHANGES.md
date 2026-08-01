@@ -1,8 +1,18 @@
 # Changes
 
+## Unreleased
+
+- Resolved the default configuration path from the user's home directory instead of the process working directory.
+- Added `ui.language` with `en`, `ru`, `es`, and `zh` translations; omitted language defaults to English.
+- Marked sealed and standby status rows as dangerous when true, and added owner-only, no-overwrite Raft snapshot saving.
+- Added filtered Vault-backed autocomplete for comma-separated user, group, and policy fields with keyboard selection.
+- Added HCL/JSON validation with line and column diagnostics in the UI and immediately before Vault writes.
+- Replaced free-form secrets-engine browse input with hierarchical navigation that keeps the current path visible and opens directly from the preview Path row.
+- Improved multiline and JSON policy readability while preserving policy content.
+
 ## 0.2
 
-- Enabled all 26 preview actions, including cluster seal/unseal/Raft restore;
+- Enabled all 27 preview actions, including cluster seal/unseal/Raft restore;
   group, user, policy, engine, SSH role, auth method, and audit lifecycle;
   secret-path browsing; and token revocation by accessor.
 - Added structured forms, read/list views, and cancel-by-default confirmations

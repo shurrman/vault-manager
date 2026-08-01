@@ -1,6 +1,9 @@
 package vaultapi
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"io"
@@ -30,8 +33,8 @@ func TestAllPublishedActionsAreEnabled(t *testing.T) {
 			}
 		}
 	}
-	if total != 26 {
-		t.Fatalf("published action count = %d, want 26", total)
+	if total != 27 {
+		t.Fatalf("published action count = %d, want 27", total)
 	}
 }
 
@@ -88,9 +91,14 @@ func TestPolicyActionsRoundTripMultilineBodies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEditor(edit policy) error = %v", err)
 	}
-	if editor.Fields[0].Kind != domain.FieldMultiline || len(editor.Fields[0].Examples) == 0 {
+	if editor.Fields[0].Kind != domain.FieldMultiline || editor.Fields[0].Format != domain.FormatPolicy || len(editor.Fields[0].Examples) == 0 {
 		t.Fatalf("policy editor is not multiline/helpful: %#v", editor.Fields[0])
 	}
+	setEditorField(&editor, "body", "path \"secret/broken\" {\n  capabilities = [\"read\"\n}")
+	if _, err := client.SaveEditor(ctx, editor); err == nil || !strings.Contains(err.Error(), "line") {
+		t.Fatalf("invalid policy error = %v, want source location", err)
+	}
+
 	updated := "# comment\npath \"secret/data/new/*\" {\n  capabilities = [\"read\", \"list\"]\n}\n"
 	setEditorField(&editor, "body", updated)
 	preview, err := client.SaveEditor(ctx, editor)
@@ -126,11 +134,33 @@ func TestPolicyActionsRoundTripMultilineBodies(t *testing.T) {
 	}
 }
 
+func validSnapshot(t *testing.T) string {
+	t.Helper()
+	var buffer bytes.Buffer
+	compressed := gzip.NewWriter(&buffer)
+	archive := tar.NewWriter(compressed)
+	content := []byte("checksum")
+	if err := archive.WriteHeader(&tar.Header{Name: "SHA256SUMS.sealed", Mode: 0o600, Size: int64(len(content))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := archive.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := archive.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := compressed.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buffer.String()
+}
+
 type statusActionFixture struct {
 	mu       sync.Mutex
 	sealed   bool
 	progress int
 	restored string
+	snapshot string
 }
 
 func (f *statusActionFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -162,13 +192,15 @@ func (f *statusActionFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		body, _ := io.ReadAll(r.Body)
 		f.restored = string(body)
 		w.WriteHeader(http.StatusNoContent)
+	case r.Method == http.MethodGet && r.URL.Path == "/v1/sys/storage/raft/snapshot":
+		_, _ = io.WriteString(w, f.snapshot)
 	default:
 		w.WriteHeader(http.StatusNotFound)
 	}
 }
 
 func TestStatusActionsUseExplicitConfirmationAndSecretInput(t *testing.T) {
-	fixture := &statusActionFixture{}
+	fixture := &statusActionFixture{snapshot: validSnapshot(t)}
 	server := httptest.NewServer(fixture)
 	defer server.Close()
 	client := newTestClient(t, server.URL)
@@ -196,6 +228,33 @@ func TestStatusActionsUseExplicitConfirmationAndSecretInput(t *testing.T) {
 	setEditorField(&unsealer, "key", "key-share")
 	if _, err := client.SaveEditor(ctx, unsealer); err != nil {
 		t.Fatalf("SaveEditor(unseal) error = %v", err)
+	}
+
+	savedSnapshot := filepath.Join(t.TempDir(), "saved.snap")
+	saver, err := client.LoadEditor(ctx, domain.SectionStatus, item, "snapshot")
+	if err != nil {
+		t.Fatalf("LoadEditor(snapshot) error = %v", err)
+	}
+	setEditorField(&saver, "file", savedSnapshot)
+	if _, err := client.SaveEditor(ctx, saver); err != nil {
+		t.Fatalf("SaveEditor(snapshot) error = %v", err)
+	}
+	saved, err := os.ReadFile(savedSnapshot)
+	if err != nil {
+		t.Fatalf("read saved snapshot: %v", err)
+	}
+	if string(saved) != fixture.snapshot {
+		t.Fatalf("saved snapshot = %q", saved)
+	}
+	info, err := os.Stat(savedSnapshot)
+	if err != nil {
+		t.Fatalf("stat saved snapshot: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("saved snapshot mode = %o, want 600", info.Mode().Perm())
+	}
+	if _, err := client.SaveEditor(ctx, saver); err == nil {
+		t.Fatal("SaveEditor(snapshot) overwrote an existing file")
 	}
 
 	snapshot := filepath.Join(t.TempDir(), "snapshot.snap")
@@ -363,8 +422,6 @@ func (f *systemActionFixture) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/v1/sys/audit/"):
 		delete(f.audits, strings.TrimPrefix(r.URL.Path, "/v1/sys/audit/")+"/")
 		w.WriteHeader(http.StatusNoContent)
-	case r.Method == http.MethodGet && r.URL.Path == "/v1/secret/metadata/app" && r.URL.Query().Get("list") == "true":
-		writeJSON(w, map[string]interface{}{"data": map[string]interface{}{"keys": []string{"config", "credentials"}}})
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/v1/ssh/roles/"):
 		role := strings.TrimPrefix(r.URL.Path, "/v1/ssh/roles/")
 		value, ok := f.roles[role]
@@ -393,17 +450,8 @@ func TestEngineSSHAuthAndAuditActionsRoundTrip(t *testing.T) {
 	defer server.Close()
 	client := newTestClient(t, server.URL)
 	ctx := context.Background()
-
 	engineItem := domain.Item{ID: "secret/", Name: "secret/", Subtitle: "kv"}
-	browser, err := client.LoadEditor(ctx, domain.SectionEngines, engineItem, "browse")
-	if err != nil {
-		t.Fatalf("LoadEditor(browse engine) error = %v", err)
-	}
-	setEditorField(&browser, "path", "metadata/app")
-	preview, err := client.SaveEditor(ctx, browser)
-	if err != nil || !strings.Contains(rowValue(preview.Rows, "keys"), "config") {
-		t.Fatalf("browse engine preview=%#v error=%v", preview, err)
-	}
+
 	enabler, _ := client.LoadEditor(ctx, domain.SectionEngines, engineItem, "enable")
 	setEditorField(&enabler, "path", "newkv")
 	if _, err := client.SaveEditor(ctx, enabler); err != nil {

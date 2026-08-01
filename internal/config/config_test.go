@@ -17,7 +17,7 @@ token = "test-token"
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.Vault.RequestTimeout != "10s" || cfg.UI.Color != "auto" {
+	if cfg.Vault.RequestTimeout != "10s" || cfg.UI.Color != "auto" || cfg.UI.Language != "en" {
 		t.Fatalf("defaults not applied: %#v", cfg)
 	}
 }
@@ -89,4 +89,54 @@ func writeConfig(t *testing.T, mode os.FileMode, contents string) string {
 		t.Fatalf("write config: %v", err)
 	}
 	return path
+}
+
+func TestLoadUILanguage(t *testing.T) {
+	path := writeConfig(t, 0o600, `[vault]
+address = "http://vault.wsoft:8400"
+token = "test-token"
+
+[ui]
+language = "ru"
+`)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.UI.Language != "ru" {
+		t.Fatalf("ui.language = %q", cfg.UI.Language)
+	}
+}
+
+func TestLoadRejectsUnsupportedUILanguage(t *testing.T) {
+	path := writeConfig(t, 0o600, `[vault]
+address = "http://vault.wsoft:8400"
+token = "test-token"
+
+[ui]
+language = "de"
+`)
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "ui.language") {
+		t.Fatalf("Load() error = %v", err)
+	}
+}
+
+func TestLoadDefaultPathUsesHomeDirectory(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := filepath.Join(home, DefaultPath)
+	if err := os.WriteFile(path, []byte(`[vault]
+address = "http://vault.wsoft:8400"
+token = "test-token"
+`), 0o600); err != nil {
+		t.Fatalf("write default config: %v", err)
+	}
+
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load(default) error = %v", err)
+	}
+	if cfg.Vault.Address != "http://vault.wsoft:8400" {
+		t.Fatalf("vault.address = %q", cfg.Vault.Address)
+	}
 }

@@ -32,11 +32,11 @@ Auth Methods, Audit y Tokens:
 
 | Área | Acciones disponibles |
 | --- | --- |
-| Clúster | Seal, envío de claves unseal y restauración de snapshots Raft |
+| Clúster | Seal, envío de claves unseal, guardado y restauración de snapshots Raft |
 | Grupos internos | Crear, editar políticas/pertenencia/metadatos y eliminar |
 | Usuarios | Crear userpass, editar entity y contraseña, revocar userpass y eliminar entity |
 | Políticas ACL | Crear, editar contenido HCL/JSON multilínea y eliminar |
-| Secrets engines | Leer/listar una ruta, habilitar y deshabilitar |
+| Secrets engines | Navegar y leer la jerarquía de valores existente, habilitar y deshabilitar |
 | Roles SSH | Crear, editar la configuración JSON completa y eliminar |
 | Métodos de autenticación | Ajustar, habilitar y deshabilitar |
 | Dispositivos de auditoría | Habilitar y deshabilitar |
@@ -46,6 +46,14 @@ Los valores multilínea conservan saltos e indentación en la vista previa. Cada
 editor incluye una zona Help inferior con sintaxis, ejemplos y consejos. Las
 acciones destructivas muestran una confirmación con Cancel seleccionado de
 forma predeterminada; Vault sigue aplicando las capacidades ACL del token.
+
+Los campos de listas separadas por comas ofrecen opciones filtradas desde los
+objetos actuales de Vault; excluyen valores ya seleccionados y permiten elegir
+con Arriba/Abajo y `Enter`/`Tab`. Los campos HCL/JSON se validan antes de la
+confirmación y otra vez antes de escribir en la API, indicando línea y columna.
+
+El idioma del TUI se define con `ui.language`: `en`, `ru`, `es` o `zh`. Si se
+omite, el valor predeterminado es `en`.
 
 ## Compilación
 
@@ -83,26 +91,33 @@ compila esta matriz y crea o actualiza automáticamente la versión en GitHub.
 
 ## Configuración
 
-Copie `.vault-manager.example` como `.vault-manager`, sustituya la dirección
-y el token, y limite el acceso al propietario del archivo:
+Copie `.vault-manager.example` como `$HOME/.vault-manager`, sustituya la
+dirección y el token, y limite el acceso al propietario del archivo:
 
 ```sh
-cp .vault-manager.example .vault-manager
-chmod 600 .vault-manager
+cp .vault-manager.example "$HOME/.vault-manager"
+chmod 600 "$HOME/.vault-manager"
 ```
 
 ```toml
 [vault]
-address = "https://vault.example.com:8200"
+address = "http://vault.wsoft:8400"
 token = "replace-me"
 request_timeout = "10s"
 
 [ui]
 color = "auto"
+language = "es"
 ```
 
-La configuración se rechaza si el grupo u otros usuarios pueden leerla. Tanto
-`.vault-manager` como `.env` están excluidos de Git.
+`ui.language` acepta los códigos de dos letras `en`, `ru`, `es` y `zh`; el
+valor predeterminado es `en`. Se admite HTTP sin TLS en redes internas de
+confianza con proxy inverso, por ejemplo `http://vault.wsoft:8400`.
+
+Sin `--config`, la aplicación carga `$HOME/.vault-manager` sin depender del
+directorio de trabajo actual. La configuración se rechaza si el grupo u otros
+usuarios pueden leerla. Tanto `.vault-manager` como `.env` están excluidos de
+Git.
 
 Una instalación que sincronice la pertenencia a grupos desde otro sistema
 puede añadir un aviso local sin modificar la aplicación:
@@ -140,6 +155,10 @@ primer elemento. No realiza operaciones de escritura.
 - `Tab`/`Shift+Tab`: ir al panel de la derecha o de la izquierda; `Tab`
   desde el panel central selecciona la primera acción de la vista previa;
 - `Enter`: activar un elemento, una acción o un campo del editor;
+- en listas separadas por comas, `↑`/`↓` eligen una sugerencia filtrada y
+  `Enter` o `Tab` la inserta;
+- en la fila Engines `Path`, `Enter` abre directamente el explorador; dentro,
+  `Enter` desciende/abre y `Esc` o `←` vuelve a la ruta superior;
 - `Space`: cambiar un campo booleano del editor;
 - `Ctrl+S`: revisar la acción actual del editor;
 - `Enter` en un campo multilínea: insertar una línea nueva;

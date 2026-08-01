@@ -31,11 +31,11 @@ Auth Methods, Audit, and Tokens:
 
 | Area | Available actions |
 | --- | --- |
-| Cluster | Seal, submit unseal keys, restore a Raft snapshot |
+| Cluster | Seal, submit unseal keys, save and restore Raft snapshots |
 | Internal groups | Create, edit policies/membership/metadata, delete |
 | Users | Create userpass account, edit entity access, change password, revoke userpass access, delete entity |
 | ACL policies | Create, edit multiline HCL/JSON body, delete |
-| Secrets engines | Read/list a path, enable, disable |
+| Secrets engines | Navigate and read the existing value hierarchy, enable, disable |
 | SSH roles | Create, edit complete JSON configuration, delete |
 | Auth methods | Tune, enable, disable |
 | Audit devices | Enable, disable |
@@ -43,6 +43,13 @@ Auth Methods, Audit, and Tokens:
 
 Multiline preview values preserve line breaks and indentation. Every editor has
 a lower Help area with field-specific syntax, examples, and operational tips.
+Comma-separated relationship fields offer filtered choices from current Vault
+objects; already selected values are excluded and Up/Down plus Enter/Tab select a
+match. HCL/JSON fields are validated before confirmation and again before an API
+write, with line and column details for syntax errors.
+
+The TUI language is selected with `ui.language`: `en`, `ru`, `es`, or `zh`. It
+defaults to `en` when omitted.
 Destructive actions open a confirmation screen with Cancel selected by default;
 Vault still enforces the caller's ACL capabilities for every operation.
 
@@ -79,26 +86,33 @@ builds this matrix, and creates or updates the GitHub Release automatically.
 
 ## Configuration
 
-Copy `.vault-manager.example` to `.vault-manager`, replace the address and
-token, and restrict the file to its owner:
+Copy `.vault-manager.example` to `$HOME/.vault-manager`, replace the address
+and token, and restrict the file to its owner:
 
 ```sh
-cp .vault-manager.example .vault-manager
-chmod 600 .vault-manager
+cp .vault-manager.example "$HOME/.vault-manager"
+chmod 600 "$HOME/.vault-manager"
 ```
 
 ```toml
 [vault]
-address = "https://vault.example.com:8200"
+address = "http://vault.wsoft:8400"
 token = "replace-me"
 request_timeout = "10s"
 
 [ui]
 color = "auto"
+language = "en"
 ```
 
-The configuration is rejected if it is readable by group or others. Both
-`.vault-manager` and `.env` are excluded from Git.
+`ui.language` accepts the two-letter codes `en`, `ru`, `es`, and `zh`; the
+default is `en`. Plain HTTP addresses are supported for trusted internal
+reverse-proxy networks such as `http://vault.wsoft:8400`.
+
+Without `--config`, the application loads `$HOME/.vault-manager`, regardless
+of its current working directory. The configuration is rejected if it is
+readable by group or others. Both `.vault-manager` and `.env` are excluded
+from Git.
 
 An installation that synchronizes membership from another system can add a
 local warning without changing the application:
@@ -135,6 +149,10 @@ write operations.
 - `Tab`/`Shift+Tab`: move to the pane on the right/left; `Tab` from the
   middle pane selects the first action in the preview;
 - `Enter`: activate an item, action, or editor field;
+- in comma-separated list fields, `↑`/`↓` choose a filtered suggestion and
+  `Enter` or `Tab` inserts it;
+- on an Engines `Path` row, `Enter` opens value browsing directly; inside it,
+  `Enter` descends/opens and `Esc` or `←` returns to the parent path;
 - `Space`: toggle a boolean editor field;
 - `Ctrl+S`: review the current editor action;
 - `Enter` inside a multiline field: insert a newline;

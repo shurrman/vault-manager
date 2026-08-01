@@ -29,11 +29,11 @@ Auth Methods、Audit 和 Tokens：
 
 | 区域 | 可用操作 |
 | --- | --- |
-| 集群 | Seal、提交 unseal 密钥、恢复 Raft 快照 |
+| 集群 | Seal、提交 unseal 密钥、保存和恢复 Raft 快照 |
 | 内部组 | 创建、编辑策略/成员关系/元数据、删除 |
 | 用户 | 创建 userpass、编辑 entity 和密码、撤销 userpass、删除 entity |
 | ACL 策略 | 创建、编辑多行 HCL/JSON 正文、删除 |
-| Secrets engines | 读取/列出路径、启用、禁用 |
+| Secrets engines | 浏览并读取现有值层级、启用、禁用 |
 | SSH 角色 | 创建、编辑完整 JSON 配置、删除 |
 | 认证方法 | 调整、启用、禁用 |
 | 审计设备 | 启用、禁用 |
@@ -42,6 +42,13 @@ Auth Methods、Audit 和 Tokens：
 预览中的多行值会保留换行和缩进。每个编辑器底部都有 Help 区域，提供语法、
 示例和操作提示。破坏性操作会显示确认界面，并默认选择 Cancel；Vault 仍会对
 每项操作检查调用 token 的 ACL 权限。
+
+逗号分隔的列表字段会从当前 Vault 对象中显示筛选后的候选项，排除已选值，
+并支持使用上/下方向键和 `Enter`/`Tab` 选择。HCL/JSON 字段会在确认前和 API
+写入前再次验证，语法错误会显示行号和列号。
+
+TUI 语言由 `ui.language` 设置，可选 `en`、`ru`、`es` 或 `zh`；未设置时
+默认为 `en`。
 
 ## 构建
 
@@ -76,25 +83,31 @@ make release
 
 ## 配置
 
-将 `.vault-manager.example` 复制为 `.vault-manager`，替换 Vault 地址和
+将 `.vault-manager.example` 复制为 `$HOME/.vault-manager`，替换 Vault 地址和
 token，并将文件权限限制为仅所有者可访问：
 
 ```sh
-cp .vault-manager.example .vault-manager
-chmod 600 .vault-manager
+cp .vault-manager.example "$HOME/.vault-manager"
+chmod 600 "$HOME/.vault-manager"
 ```
 
 ```toml
 [vault]
-address = "https://vault.example.com:8200"
+address = "http://vault.wsoft:8400"
 token = "replace-me"
 request_timeout = "10s"
 
 [ui]
 color = "auto"
+language = "zh"
 ```
 
-如果组用户或其他用户可以读取配置文件，程序将拒绝使用该文件。
+`ui.language` 接受双字母代码 `en`、`ru`、`es` 和 `zh`，默认值为 `en`。
+在可信内部反向代理网络中支持不使用 TLS 的 HTTP，例如
+`http://vault.wsoft:8400`。
+
+未指定 `--config` 时，程序始终加载 `$HOME/.vault-manager`，不受当前工作目录
+影响。如果组用户或其他用户可以读取配置文件，程序将拒绝使用该文件。
 `.vault-manager` 和 `.env` 均已被 Git 忽略。
 
 如果某个部署环境从其他系统同步组成员关系，可以在不修改应用程序的情况下添加
@@ -131,6 +144,10 @@ bin/vault-manager --check
 - `Tab`/`Shift+Tab`：切换到右侧或左侧面板；在中间面板按 `Tab` 会选中
   预览中的第一个操作；
 - `Enter`：激活项目、操作或编辑器字段；
+- 在逗号分隔的列表字段中，`↑`/`↓` 选择筛选后的候选项，`Enter` 或
+  `Tab` 插入候选项；
+- 在 Engines 的 `Path` 行按 `Enter` 会直接打开值浏览器；在浏览器内，`Enter`
+  进入/打开，`Esc` 或 `←` 返回上一级路径；
 - `Space`：切换编辑器中的布尔字段；
 - `Ctrl+S`：检查当前编辑器操作；
 - 在多行字段中按 `Enter`：插入新行；

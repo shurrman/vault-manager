@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/vault/api"
 
 	"vault-manager/internal/domain"
+	"vault-manager/internal/validation"
 )
 
 func (c *Client) loadActionEditor(ctx context.Context, section domain.Section, item domain.Item, actionID string) (domain.Editor, error) {
@@ -114,6 +115,17 @@ func requiredRawField(editor domain.Editor, id string) (string, error) {
 	return value, nil
 }
 
+func validatedRawField(editor domain.Editor, id string, format domain.FieldFormat) (string, error) {
+	value, err := requiredRawField(editor, id)
+	if err != nil {
+		return "", err
+	}
+	if err := validation.Field(format, value); err != nil {
+		return "", fmt.Errorf("%w: %s: %v", errValidation, id, err)
+	}
+	return value, nil
+}
+
 func boolField(editor domain.Editor, id string) (bool, error) {
 	value, err := strconv.ParseBool(strings.TrimSpace(fieldValue(editor, id)))
 	if err != nil {
@@ -124,6 +136,9 @@ func boolField(editor domain.Editor, id string) (bool, error) {
 
 func parseJSONObjectField(editor domain.Editor, id string) (map[string]interface{}, error) {
 	value := strings.TrimSpace(fieldValue(editor, id))
+	if err := validation.Field(domain.FormatJSONObject, value); err != nil {
+		return nil, fmt.Errorf("%w: %s: %v", errValidation, id, err)
+	}
 	if value == "" {
 		return map[string]interface{}{}, nil
 	}
@@ -136,6 +151,9 @@ func parseJSONObjectField(editor domain.Editor, id string) (map[string]interface
 
 func parseStringMapField(editor domain.Editor, id string) (map[string]string, error) {
 	value := strings.TrimSpace(fieldValue(editor, id))
+	if err := validation.Field(domain.FormatStringMap, value); err != nil {
+		return nil, fmt.Errorf("%w: %s: %v", errValidation, id, err)
+	}
 	if value == "" {
 		return map[string]string{}, nil
 	}
@@ -159,19 +177,6 @@ func normalizeMountPath(value string) (string, error) {
 	return value + "/", nil
 }
 
-func secretPath(mount, relative string) (string, error) {
-	relative = strings.Trim(strings.TrimSpace(relative), "/")
-	if relative == "" {
-		return mount, nil
-	}
-	for _, part := range strings.Split(relative, "/") {
-		if part == "" || part == "." || part == ".." {
-			return "", fmt.Errorf("%w: secret path contains an invalid segment", errValidation)
-		}
-	}
-	return mount + relative, nil
-}
-
 func editorResult(title string, values ...string) domain.Preview {
 	return domain.Preview{Title: title, Rows: rows(values...)}
 }
@@ -190,6 +195,14 @@ func (c *Client) loadStatusAction(item domain.Item, actionID string) (domain.Edi
 		editor.RefreshList = true
 		editor.SuccessMessage = "Unseal key accepted"
 		editor.Tips = []string{"The key is write-only in this UI and is never included in logs or error text."}
+		return editor, nil
+	case "snapshot":
+		editor := newActionEditor(domain.SectionStatus, item, actionID, "Save a Raft snapshot", []domain.EditField{
+			actionField("file", "Snapshot file", "", domain.FieldText, "New local file path for the Vault Raft snapshot. Existing files are never overwritten.", "/secure/backups/vault.snap"),
+		})
+		editor.SubmitLabel = "Save"
+		editor.SuccessMessage = "Snapshot saved and verified"
+		editor.Tips = []string{"The snapshot file is created with owner-only permissions (0600)."}
 		return editor, nil
 	case "restore":
 		editor := newActionEditor(domain.SectionStatus, item, actionID, "Restore a Raft snapshot", []domain.EditField{
@@ -230,6 +243,36 @@ func (c *Client) saveStatusAction(ctx context.Context, editor domain.Editor) (do
 			return domain.Preview{}, err
 		}
 		return sealStatusPreview(status), nil
+	case "snapshot":
+		path, err := requiredField(editor, "file")
+		if err != nil {
+			return domain.Preview{}, err
+		}
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			return domain.Preview{}, fmt.Errorf("create snapshot: %w", err)
+		}
+		cleanup := func() {
+			_ = file.Close()
+			_ = os.Remove(path)
+		}
+		if err := c.api.Sys().RaftSnapshotWithContext(ctx, file); err != nil {
+			cleanup()
+			return domain.Preview{}, err
+		}
+		if err := file.Close(); err != nil {
+			_ = os.Remove(path)
+			return domain.Preview{}, fmt.Errorf("close snapshot: %w", err)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			return domain.Preview{}, fmt.Errorf("verify snapshot: %w", err)
+		}
+		if info.Size() == 0 {
+			_ = os.Remove(path)
+			return domain.Preview{}, errors.New("snapshot verification failed: file is empty")
+		}
+		return editorResult("Raft snapshot saved", "File", path, "Bytes", strconv.FormatInt(info.Size(), 10)), nil
 	case "restore":
 		path, err := requiredField(editor, "file")
 		if err != nil {
@@ -254,34 +297,42 @@ func (c *Client) saveStatusAction(ctx context.Context, editor domain.Editor) (do
 }
 
 func sealStatusPreview(status *api.SealStatusResponse) domain.Preview {
-	return editorResult("Seal status",
+	preview := editorResult("Seal status",
 		"Initialized", boolString(status.Initialized),
 		"Sealed", boolString(status.Sealed),
 		"Progress", strconv.Itoa(status.Progress),
 		"Threshold", strconv.Itoa(status.T),
 		"Seal type", status.Type,
 	)
+	markDanger(preview.Rows, "Sealed", status.Sealed)
+	return preview
 }
 
 func (c *Client) loadGroupAction(ctx context.Context, item domain.Item, actionID string) (domain.Editor, error) {
 	switch actionID {
 	case "create":
-		if _, entityInfo, err := c.listIdentity(ctx, "identity/entity/id"); err == nil {
-			c.mu.Lock()
-			cacheNames(c.entityNames, entityInfo)
-			c.mu.Unlock()
+		policyItems, err := c.listPolicies(ctx)
+		if err != nil {
+			return domain.Editor{}, err
 		}
-		if _, groupInfo, err := c.listIdentity(ctx, "identity/group/id"); err == nil {
-			c.mu.Lock()
-			cacheNames(c.groupNames, groupInfo)
-			c.mu.Unlock()
+		_, entityInfo, err := c.listIdentity(ctx, "identity/entity/id")
+		if err != nil {
+			return domain.Editor{}, err
 		}
+		_, groupInfo, err := c.listIdentity(ctx, "identity/group/id")
+		if err != nil {
+			return domain.Editor{}, err
+		}
+		c.mu.Lock()
+		cacheNames(c.entityNames, entityInfo)
+		cacheNames(c.groupNames, groupInfo)
+		c.mu.Unlock()
 		editor := newActionEditor(domain.SectionGroups, item, actionID, "Create an internal identity group", []domain.EditField{
 			actionField("name", "Name", "", domain.FieldText, "Unique Vault identity group name.", "jira-developers"),
-			actionField("policies", "Policies", "", domain.FieldText, "Comma-separated existing ACL policy names.", "default, jira-developers-policy"),
-			actionField("members", "Members", "", domain.FieldText, "Comma-separated existing identity entity names.", "alice, bob"),
-			actionField("nested_groups", "Nested groups", "", domain.FieldText, "Comma-separated existing internal group names.", "engineering"),
-			actionField("metadata", "Metadata", "{}", domain.FieldText, "JSON object stored with the group.", `{"owner":"platform"}`),
+			listActionField("policies", "Policies", "", "Comma-separated existing ACL policy names.", itemOptionNames(policyItems), "default, jira-developers-policy"),
+			listActionField("members", "Members", "", "Comma-separated existing identity entity names.", identityOptionNames(entityInfo, "", false), "alice, bob"),
+			listActionField("nested_groups", "Nested groups", "", "Comma-separated existing internal group names.", identityOptionNames(groupInfo, "", true), "engineering"),
+			formattedActionField("metadata", "Metadata", "{}", domain.FieldText, domain.FormatJSONObject, "JSON object stored with the group.", `{"owner":"platform"}`),
 		})
 		editor.SubmitLabel = "Create"
 		editor.RefreshList = true
@@ -453,12 +504,16 @@ func (c *Client) loadUserAction(ctx context.Context, item domain.Item, actionID 
 		if len(paths) == 0 {
 			return domain.Editor{}, fmt.Errorf("%w: no userpass auth method is enabled", errValidation)
 		}
+		policyItems, err := c.listPolicies(ctx)
+		if err != nil {
+			return domain.Editor{}, err
+		}
 		editor := newActionEditor(domain.SectionUsers, item, actionID, "Create a userpass account", []domain.EditField{
 			actionField("mount", "Auth mount", paths[0], domain.FieldText, "Existing userpass auth mount path.", paths...),
 			actionField("username", "Username", "", domain.FieldText, "New username within the selected auth mount.", "alice"),
 			actionField("password", "Password", "", domain.FieldSecret, "Write-only initial password."),
 			actionField("confirm", "Confirm password", "", domain.FieldSecret, "Must exactly match Password."),
-			actionField("policies", "Token policies", "", domain.FieldText, "Comma-separated existing ACL policies assigned at login.", "default, developers"),
+			listActionField("policies", "Token policies", "", "Comma-separated existing ACL policies assigned at login.", itemOptionNames(policyItems), "default, developers"),
 		})
 		editor.SubmitLabel = "Create"
 		editor.RefreshList = true
@@ -652,12 +707,13 @@ func (c *Client) loadPolicyAction(ctx context.Context, item domain.Item, actionI
 		if err != nil {
 			return domain.Editor{}, err
 		}
-		body := policyBody(secretData(secret))
+		rawBody := policyBody(secretData(secret))
+		body := readablePolicy(rawBody)
 		editor := newActionEditor(domain.SectionPolicies, item, actionID, "Edit ACL policy "+item.Name, []domain.EditField{
-			actionField("body", "Policy", body, domain.FieldMultiline, "Vault ACL policy in HCL or JSON.", "path \"secret/data/app/*\" {\n  capabilities = [\"read\"]\n}"),
+			formattedActionField("body", "Policy", body, domain.FieldMultiline, domain.FormatPolicy, "Vault ACL policy in HCL or JSON.", "path \"secret/data/app/*\" {\n  capabilities = [\"read\"]\n}"),
 		})
 		editor.Context["name"] = item.ID
-		editor.Fingerprint = fingerprint(body)
+		editor.Fingerprint = fingerprint(rawBody)
 		editor.SubmitLabel = "Update"
 		editor.SuccessMessage = "Policy updated and verified"
 		editor.Tips = []string{"Policy changes affect new authorization checks immediately."}
@@ -665,7 +721,7 @@ func (c *Client) loadPolicyAction(ctx context.Context, item domain.Item, actionI
 	case "create":
 		editor := newActionEditor(domain.SectionPolicies, item, actionID, "Create an ACL policy", []domain.EditField{
 			actionField("name", "Name", "", domain.FieldText, "Unique ACL policy name.", "app-readonly"),
-			actionField("body", "Policy", "", domain.FieldMultiline, "Vault ACL policy in HCL or JSON.", "path \"secret/data/app/*\" {\n  capabilities = [\"read\"]\n}"),
+			formattedActionField("body", "Policy", "", domain.FieldMultiline, domain.FormatPolicy, "Vault ACL policy in HCL or JSON.", "path \"secret/data/app/*\" {\n  capabilities = [\"read\"]\n}"),
 		})
 		editor.SubmitLabel = "Create"
 		editor.RefreshList = true
@@ -699,7 +755,7 @@ func (c *Client) savePolicyAction(ctx context.Context, editor domain.Editor) (do
 		if current == nil || fingerprint(policyBody(secretData(current))) != editor.Fingerprint {
 			return domain.Preview{}, errConflict
 		}
-		body, err := requiredRawField(editor, "body")
+		body, err := validatedRawField(editor, "body", domain.FormatPolicy)
 		if err != nil {
 			return domain.Preview{}, err
 		}
@@ -720,7 +776,7 @@ func (c *Client) savePolicyAction(ctx context.Context, editor domain.Editor) (do
 		if err != nil {
 			return domain.Preview{}, err
 		}
-		body, err := requiredRawField(editor, "body")
+		body, err := validatedRawField(editor, "body", domain.FormatPolicy)
 		if err != nil {
 			return domain.Preview{}, err
 		}
@@ -772,25 +828,26 @@ func policyBody(data map[string]interface{}) string {
 	return fallback(stringValue(data["policy"]), stringValue(data["rules"]))
 }
 
+func readablePolicy(body string) string {
+	var value interface{}
+	if err := json.Unmarshal([]byte(body), &value); err != nil {
+		return body
+	}
+	formatted, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return body
+	}
+	return string(formatted)
+}
+
 func (c *Client) loadEngineAction(ctx context.Context, item domain.Item, actionID string) (domain.Editor, error) {
 	switch actionID {
-	case "browse":
-		editor := newActionEditor(domain.SectionEngines, item, actionID, "Browse "+item.Name, []domain.EditField{
-			actionField("path", "Relative path", "", domain.FieldText, "Path inside the selected secrets engine; leave empty to address the mount root.", "app/config", "metadata/app"),
-			actionField("operation", "Operation", "list", domain.FieldText, "Use list to enumerate keys or read to show data.", "list", "read"),
-		})
-		editor.Context["mount"] = item.ID
-		editor.SubmitLabel = "Open"
-		editor.SubmitAlways = true
-		editor.SuccessMessage = "Secret path loaded"
-		editor.Tips = []string{"KV v2 data reads normally use data/<name>; key listings normally use metadata/<name>."}
-		return editor, nil
 	case "enable":
 		editor := newActionEditor(domain.SectionEngines, item, actionID, "Enable a secrets engine", []domain.EditField{
 			actionField("path", "Mount path", "", domain.FieldText, "Unique mount path.", "secret"),
 			actionField("type", "Engine type", "kv", domain.FieldText, "Vault secrets engine type or plugin name.", "kv", "ssh", "database"),
 			actionField("description", "Description", "", domain.FieldText, "Human-readable purpose of the mount."),
-			actionField("options", "Options", `{"version":"2"}`, domain.FieldText, "JSON object with string values; use {} when the engine has no options.", `{"version":"2"}`),
+			formattedActionField("options", "Options", `{"version":"2"}`, domain.FieldText, domain.FormatStringMap, "JSON object with string values; use {} when the engine has no options.", `{"version":"2"}`),
 			actionField("local", "Local", "false", domain.FieldBoolean, "Local mounts are not replicated across clusters."),
 		})
 		editor.SubmitLabel = "Enable"
@@ -814,35 +871,6 @@ func (c *Client) loadEngineAction(ctx context.Context, item domain.Item, actionI
 
 func (c *Client) saveEngineAction(ctx context.Context, editor domain.Editor) (domain.Preview, error) {
 	switch editor.ActionID {
-	case "browse":
-		mount, err := normalizeMountPath(editor.Context["mount"])
-		if err != nil {
-			return domain.Preview{}, err
-		}
-		path, err := secretPath(mount, fieldValue(editor, "path"))
-		if err != nil {
-			return domain.Preview{}, err
-		}
-		operation := strings.ToLower(strings.TrimSpace(fieldValue(editor, "operation")))
-		var secret *api.Secret
-		switch operation {
-		case "list":
-			secret, err = c.api.Logical().ListWithContext(ctx, path)
-		case "read":
-			secret, err = c.api.Logical().ReadWithContext(ctx, path)
-		default:
-			return domain.Preview{}, fmt.Errorf("%w: operation must be list or read", errValidation)
-		}
-		if err != nil {
-			return domain.Preview{}, err
-		}
-		preview := domain.Preview{Title: path, Subtitle: operation}
-		if secret == nil || len(secret.Data) == 0 {
-			preview.Rows = rows("Result", "No data")
-		} else {
-			preview.Rows = mapRows(secret.Data)
-		}
-		return preview, nil
 	case "enable":
 		mount, err := normalizeMountPath(fieldValue(editor, "path"))
 		if err != nil {
@@ -941,7 +969,7 @@ func (c *Client) loadSSHAction(ctx context.Context, item domain.Item, actionID s
 		}
 		data := secretData(secret)
 		editor := newActionEditor(domain.SectionSSH, item, actionID, "Edit SSH role "+role, []domain.EditField{
-			actionField("config", "Role JSON", pretty(data), domain.FieldMultiline, "Complete SSH role configuration as a JSON object.", `{"key_type":"ca","allow_user_certificates":true,"allowed_users":"*"}`),
+			formattedActionField("config", "Role JSON", pretty(data), domain.FieldMultiline, domain.FormatJSONObject, "Complete SSH role configuration as a JSON object.", `{"key_type":"ca","allow_user_certificates":true,"allowed_users":"*"}`),
 		})
 		editor.Context["mount"] = mount
 		editor.Context["role"] = role
@@ -957,7 +985,7 @@ func (c *Client) loadSSHAction(ctx context.Context, item domain.Item, actionID s
 		editor := newActionEditor(domain.SectionSSH, item, actionID, "Create an SSH role", []domain.EditField{
 			actionField("mount", "SSH mount", strings.TrimSuffix(mount, "/"), domain.FieldText, "Existing SSH secrets engine mount.", "ssh"),
 			actionField("name", "Role name", "", domain.FieldText, "New role name.", "developer"),
-			actionField("config", "Role JSON", "{}", domain.FieldMultiline, "SSH role configuration as a JSON object.", `{"key_type":"ca","allow_user_certificates":true,"allowed_users":"*"}`),
+			formattedActionField("config", "Role JSON", "{}", domain.FieldMultiline, domain.FormatJSONObject, "SSH role configuration as a JSON object.", `{"key_type":"ca","allow_user_certificates":true,"allowed_users":"*"}`),
 		})
 		editor.SubmitLabel = "Create"
 		editor.RefreshList = true
@@ -1107,7 +1135,7 @@ func (c *Client) loadAuthAction(ctx context.Context, item domain.Item, actionID 
 			actionField("path", "Mount path", "", domain.FieldText, "Unique auth mount path.", "userpass"),
 			actionField("type", "Auth type", "userpass", domain.FieldText, "Vault auth method type or plugin name.", "userpass", "ldap", "oidc"),
 			actionField("description", "Description", "", domain.FieldText, "Human-readable purpose of the auth mount."),
-			actionField("options", "Options", "{}", domain.FieldText, "JSON object with string values.", "{}"),
+			formattedActionField("options", "Options", "{}", domain.FieldText, domain.FormatStringMap, "JSON object with string values.", "{}"),
 			actionField("local", "Local", "false", domain.FieldBoolean, "Local auth mounts are not replicated across clusters."),
 		})
 		editor.SubmitLabel = "Enable"
@@ -1238,7 +1266,7 @@ func (c *Client) loadAuditAction(ctx context.Context, item domain.Item, actionID
 			actionField("path", "Device path", "", domain.FieldText, "Unique audit device path.", "file"),
 			actionField("type", "Device type", "file", domain.FieldText, "Vault audit device type.", "file", "socket", "syslog"),
 			actionField("description", "Description", "", domain.FieldText, "Human-readable purpose of the audit device."),
-			actionField("options", "Options", `{"file_path":"/var/log/vault_audit.log"}`, domain.FieldText, "JSON object with string values; required keys depend on the device type.", `{"file_path":"/var/log/vault_audit.log"}`),
+			formattedActionField("options", "Options", `{"file_path":"/var/log/vault_audit.log"}`, domain.FieldText, domain.FormatStringMap, "JSON object with string values; required keys depend on the device type.", `{"file_path":"/var/log/vault_audit.log"}`),
 			actionField("local", "Local", "false", domain.FieldBoolean, "Local audit devices are configured only on the current cluster."),
 		})
 		editor.SubmitLabel = "Enable"

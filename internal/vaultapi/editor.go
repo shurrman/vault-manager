@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"vault-manager/internal/domain"
+	"vault-manager/internal/validation"
 )
 
 func (c *Client) LoadEditor(ctx context.Context, section domain.Section, item domain.Item, actionID string) (domain.Editor, error) {
@@ -79,25 +80,31 @@ func (c *Client) loadGroupEditor(ctx context.Context, item domain.Item) (domain.
 		return domain.Editor{}, err
 	}
 	data := secretData(secret)
-	if _, entityInfo, loadErr := c.listIdentity(ctx, "identity/entity/id"); loadErr == nil {
-		c.mu.Lock()
-		cacheNames(c.entityNames, entityInfo)
-		c.mu.Unlock()
+	policyItems, err := c.listPolicies(ctx)
+	if err != nil {
+		return domain.Editor{}, err
 	}
-	if _, groupInfo, loadErr := c.listIdentity(ctx, "identity/group/id"); loadErr == nil {
-		c.mu.Lock()
-		cacheNames(c.groupNames, groupInfo)
-		c.mu.Unlock()
+	_, entityInfo, err := c.listIdentity(ctx, "identity/entity/id")
+	if err != nil {
+		return domain.Editor{}, err
 	}
+	_, groupInfo, err := c.listIdentity(ctx, "identity/group/id")
+	if err != nil {
+		return domain.Editor{}, err
+	}
+	c.mu.Lock()
+	cacheNames(c.entityNames, entityInfo)
+	cacheNames(c.groupNames, groupInfo)
+	c.mu.Unlock()
 	metadata, err := compactJSON(data["metadata"])
 	if err != nil {
 		return domain.Editor{}, err
 	}
 	fields := []domain.EditField{
-		editField("policies", "Policies", joinCSV(stringSlice(data["policies"])), domain.FieldText, "Comma-separated existing policy names"),
-		editField("members", "Members", c.entityNamesForCSV(stringSlice(data["member_entity_ids"])), domain.FieldText, "Comma-separated entity names"),
-		editField("nested_groups", "Nested groups", c.groupNamesForCSV(stringSlice(data["member_group_ids"])), domain.FieldText, "Comma-separated group names"),
-		editField("metadata", "Metadata", metadata, domain.FieldText, "JSON object"),
+		listEditField("policies", "Policies", joinCSV(stringSlice(data["policies"])), "Comma-separated existing policy names", itemOptionNames(policyItems)),
+		listEditField("members", "Members", c.entityNamesForCSV(stringSlice(data["member_entity_ids"])), "Comma-separated entity names", identityOptionNames(entityInfo, "", false)),
+		listEditField("nested_groups", "Nested groups", c.groupNamesForCSV(stringSlice(data["member_group_ids"])), "Comma-separated internal group names", identityOptionNames(groupInfo, item.ID, true)),
+		formattedEditField("metadata", "Metadata", metadata, domain.FieldText, domain.FormatJSONObject, "JSON object"),
 	}
 	return domain.Editor{
 		Section:     domain.SectionGroups,
@@ -173,6 +180,10 @@ func (c *Client) loadEntityEditor(ctx context.Context, item domain.Item) (domain
 	}
 	data := secretData(secret)
 
+	policyItems, err := c.listPolicies(ctx)
+	if err != nil {
+		return domain.Editor{}, err
+	}
 	_, groupInfo, err := c.listIdentity(ctx, "identity/group/id")
 	if err != nil {
 		return domain.Editor{}, err
@@ -205,9 +216,9 @@ func (c *Client) loadEntityEditor(ctx context.Context, item domain.Item) (domain
 		warnings = append(warnings, c.membershipNotice)
 	}
 	fields := []domain.EditField{
-		editField("policies", "Direct policies", joinCSV(stringSlice(data["policies"])), domain.FieldText, "Comma-separated existing policy names"),
+		listEditField("policies", "Direct policies", joinCSV(stringSlice(data["policies"])), "Comma-separated existing policy names", itemOptionNames(policyItems)),
 		editField("disabled", "Disabled", strconv.FormatBool(boolValue(data["disabled"])), domain.FieldBoolean, "Disables all tokens associated with this entity"),
-		editField("groups", "Groups", c.groupNamesForCSV(stringSlice(data["direct_group_ids"])), domain.FieldText, "Comma-separated internal group names; save is non-atomic"),
+		listEditField("groups", "Groups", c.groupNamesForCSV(stringSlice(data["direct_group_ids"])), "Comma-separated internal group names; save is non-atomic", identityOptionNames(groupInfo, "", true)),
 	}
 	return domain.Editor{
 		Section:     domain.SectionUsers,
@@ -645,6 +656,9 @@ func compactJSON(value interface{}) (string, error) {
 }
 
 func parseMetadata(value string) (map[string]interface{}, error) {
+	if err := validation.Field(domain.FormatJSONObject, value); err != nil {
+		return nil, fmt.Errorf("%w: metadata: %v", errValidation, err)
+	}
 	if strings.TrimSpace(value) == "" {
 		return map[string]interface{}{}, nil
 	}

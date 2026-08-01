@@ -95,6 +95,19 @@ func TestGroupEditorResolvesNamesAndPreservesObject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEditor() error = %v", err)
 	}
+	fields := make(map[string]domain.EditField, len(editor.Fields))
+	for _, field := range editor.Fields {
+		fields[field.ID] = field
+	}
+	if fields["policies"].Kind != domain.FieldList || !containsString(fields["policies"].Options, "new-policy") {
+		t.Fatalf("policy choices = %#v", fields["policies"])
+	}
+	if fields["members"].Kind != domain.FieldList || !containsString(fields["members"].Options, "alice") {
+		t.Fatalf("member choices = %#v", fields["members"])
+	}
+	if fields["metadata"].Format != domain.FormatJSONObject {
+		t.Fatalf("metadata format = %q", fields["metadata"].Format)
+	}
 	setEditorField(&editor, "policies", "new-policy")
 	setEditorField(&editor, "members", "alice")
 

@@ -23,6 +23,19 @@ return effects. Vault calls, terminal rendering, and configuration are adapters
 around that state. Stale asynchronous responses carry request and resource IDs
 and are ignored after the selection changes.
 
+## Localization
+
+The renderer uses an English source-key catalog with `en`, `ru`, `es`, and `zh`
+translations. `ui.language` selects the catalog and defaults to `en`; Vault data
+values remain unchanged.
+
+## Configuration
+
+When `--config` is omitted, the configuration adapter resolves
+`.vault-manager` from the user's home directory instead of the process working
+directory. An explicit `--config` path is used as provided. Configuration files
+must remain owner-only because they contain the Vault token.
+
 ## Three-pane model
 
 The left pane contains `Status`, `Groups`, `Users`, `Policies`, `Engines`,
@@ -72,21 +85,33 @@ not alter save behavior.
 
 ## Action model
 
-Every published preview action is active. Actions still use the same
-`LoadEditor` / `SaveEditor` boundary, including commands that do not resemble a
-traditional field editor. This gives the reducer one lifecycle for loading,
-editing, review, execution, stale-response rejection, and error recovery.
+Every published preview action is active. Mutating actions use the shared
+`LoadEditor` / `SaveEditor` lifecycle for loading, editing, review, execution,
+stale-response rejection, and error recovery. Secrets-engine browsing uses a
+separate read-only `BrowserBackend` lifecycle with the same request-ID stale
+response protection.
 
-Action editors fall into three groups:
+Interactive actions fall into three groups:
 
 - structured forms for create, update, tune, enable, and Raft restore;
 - confirmation-only forms for delete, disable, seal, and revoke;
-- read/list forms for browsing a path inside a selected secrets engine.
+- the hierarchical read-only browser for existing secrets-engine paths.
 
 ACL policy bodies and SSH role JSON use a multiline textarea. Preview rows keep
 embedded newlines and indentation instead of flattening them. The lower part of
 every form reserves a bounded Help area for the selected field's syntax,
 examples, and operational tips.
+
+Comma-separated relationship fields carry the current Vault-backed option set;
+the UI filters the current segment, excludes selected values, and supports
+keyboard selection. Structured fields carry an explicit HCL/JSON format and
+are validated both before confirmation and at the API write boundary.
+
+The secrets-engine browser keeps a normalized relative path in state. Directory
+entries are loaded with LIST, leaf values with READ, and the visible header
+always shows the mount plus current path. The engine preview `Path` row opens this browser as its default Enter action.
+Enter descends or opens a leaf; Esc
+returns to the parent without accepting arbitrary operation names.
 
 The auth mount model keeps the mount-table path (`userpass/`) separate from the
 runtime API path (`auth/userpass/`) so display/navigation paths cannot leak into
@@ -112,7 +137,9 @@ follow-up read or list. Commands without a stable readable representation use
 the strongest response/status verification exposed by Vault.
 
 Tokens, passwords, unseal keys, and real secret values are excluded from logs,
-errors, snapshots, and test fixtures.
+errors, and test fixtures. A user-requested Raft snapshot necessarily contains
+Vault storage state; it is created as a new `0600` file, never overwrites an
+existing path, and a partial new file is removed on failure.
 
 ### User membership
 
@@ -138,5 +165,3 @@ detection, every action family, and partial membership writes use automated
 tests. API contracts use an in-process fake HTTP Vault server. A disposable development
 Vault remains the integration target for live write testing; the configured
 real cluster is used only for an explicit read-only smoke check.
-
-Daily Raft snapshot backup and restore tooling is a separate future task.

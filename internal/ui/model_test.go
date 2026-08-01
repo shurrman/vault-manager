@@ -6,16 +6,20 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"vault-manager/internal/domain"
 )
 
 type fakeBackend struct {
-	items       []domain.Item
-	preview     domain.Preview
-	editor      domain.Editor
-	loadEditors int
-	saves       int
-	err         error
+	items        []domain.Item
+	preview      domain.Preview
+	editor       domain.Editor
+	loadEditors  int
+	saves        int
+	err          error
+	browserPages map[string]domain.BrowserPage
+	browsePaths  []string
 }
 
 func (f *fakeBackend) List(context.Context, domain.Section) ([]domain.Item, error) {
@@ -34,6 +38,15 @@ func (f *fakeBackend) LoadEditor(context.Context, domain.Section, domain.Item, s
 func (f *fakeBackend) SaveEditor(context.Context, domain.Editor) (domain.Preview, error) {
 	f.saves++
 	return f.preview, f.err
+}
+
+func (f *fakeBackend) Browse(_ context.Context, _ domain.Section, _ domain.Item, path string, read bool) (domain.BrowserPage, error) {
+	f.browsePaths = append(f.browsePaths, path)
+	key := path
+	if read {
+		key += "|read"
+	}
+	return f.browserPages[key], f.err
 }
 
 func TestDisabledActionNeverProducesEffect(t *testing.T) {
@@ -377,5 +390,122 @@ func TestConfirmationOnlyActionDefaultsToCancel(t *testing.T) {
 	model.confirmChoice()
 	if model.mode != modeBrowse || backend.saves != 0 {
 		t.Fatalf("default cancel changed backend: mode=%v saves=%d", model.mode, backend.saves)
+	}
+}
+
+func TestDangerRowUsesWholeRowMarkerWithoutColor(t *testing.T) {
+	model := New(&fakeBackend{}, "never")
+	model.height = 24
+	model.pane = PanePreview
+	model.previewState = stateReady
+	model.preview = domain.Preview{Rows: []domain.Row{{Label: "Sealed", Value: "yes", Severity: domain.SeverityDanger}}}
+
+	rendered := strings.Join(model.previewLines(), "\n")
+	if !strings.Contains(rendered, "! Sealed: yes") {
+		t.Fatalf("danger row is not visibly marked: %q", rendered)
+	}
+}
+
+func TestListSuggestionsFilterExcludeAndAcceptWithKeyboard(t *testing.T) {
+	model := New(&fakeBackend{}, "never")
+	model.width = 120
+	model.mode = modeEditing
+	model.editor.spec = domain.Editor{Fields: []domain.EditField{{
+		ID: "members", Label: "Members", Kind: domain.FieldList,
+		Value: "alpha", Original: "alpha", Options: []string{"alpha", "albert", "amber", "beta"},
+	}}}
+	model.startFieldEdit()
+	model.editor.input.SetValue("alpha, a")
+	model.editor.input.CursorEnd()
+	model.syncInput()
+
+	if got := model.listSuggestions(); len(got) != 2 || got[0] != "albert" || got[1] != "amber" {
+		t.Fatalf("filtered suggestions = %#v", got)
+	}
+	model.handleEditingKey(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.handleEditingKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if got := model.editor.spec.Fields[0].Value; got != "alpha, amber" {
+		t.Fatalf("accepted list value = %q", got)
+	}
+}
+
+func TestInvalidStructuredFieldCannotReachConfirmation(t *testing.T) {
+	model := New(&fakeBackend{}, "never")
+	model.mode = modeEditing
+	model.editor.spec = domain.Editor{Fields: []domain.EditField{{
+		ID: "body", Label: "Policy", Kind: domain.FieldMultiline, Format: domain.FormatPolicy,
+		Original: "path \"secret/*\" {}", Value: "path \"secret/*\" {\n capabilities = [\"read\"\n}",
+	}}}
+
+	model.reviewEditor()
+	if model.mode != modeEditing || !strings.Contains(model.editor.validationError, "line") {
+		t.Fatalf("invalid format was not blocked with a location: mode=%v error=%q", model.mode, model.editor.validationError)
+	}
+}
+
+func TestEngineBrowserNavigatesAndEscapesToParent(t *testing.T) {
+	backend := &fakeBackend{browserPages: map[string]domain.BrowserPage{
+		"":                {Path: "", DisplayPath: "secret/", Entries: []domain.BrowserEntry{{Name: "app", Path: "app", Directory: true}}},
+		"app":             {Path: "app", DisplayPath: "secret/app", Entries: []domain.BrowserEntry{{Name: "config", Path: "app/config"}}},
+		"app/config|read": {Path: "app/config", DisplayPath: "secret/app/config", Leaf: true, Rows: []domain.Row{{Label: "name", Value: "demo"}}},
+	}}
+	model := New(backend, "never")
+	model.sectionIndex = 4
+	model.pane = PanePreview
+	model.previewState = stateReady
+	model.items = []domain.Item{{ID: "secret/", Name: "secret/"}}
+	model.preview = domain.Preview{Actions: []domain.Action{{ID: "browse", Label: "Browse values", Enabled: true}}}
+
+	_, cmd := model.activate()
+	model.handleBrowserLoaded(cmd().(browserLoadedMsg))
+	_, cmd = model.handleBrowserKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model.handleBrowserLoaded(cmd().(browserLoadedMsg))
+	_, cmd = model.handleBrowserKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	model.handleBrowserLoaded(cmd().(browserLoadedMsg))
+	if model.browserTitle() != "secret/app/config" || !model.browser.page.Leaf {
+		t.Fatalf("leaf browser state = %#v", model.browser)
+	}
+	_, cmd = model.handleBrowserKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	model.handleBrowserLoaded(cmd().(browserLoadedMsg))
+	if model.browser.page.Path != "app" {
+		t.Fatalf("Esc parent path = %q", model.browser.page.Path)
+	}
+}
+
+func TestRussianChromeUsesConfiguredLanguage(t *testing.T) {
+	model := New(&fakeBackend{}, "never", "ru")
+	if got := model.sectionLines()[0]; !strings.Contains(got, "Статус") {
+		t.Fatalf("Russian section label = %q", got)
+	}
+	if got := model.editorTitle(); got != "Просмотр" {
+		t.Fatalf("Russian preview title = %q", got)
+	}
+}
+
+func TestEnginePathRowOpensBrowserAsDefaultAction(t *testing.T) {
+	backend := &fakeBackend{browserPages: map[string]domain.BrowserPage{
+		"": {Path: "", DisplayPath: "legacy/", Entries: []domain.BrowserEntry{{Name: "app", Path: "app", Directory: true}}},
+	}}
+	model := New(backend, "never")
+	model.sectionIndex = 4
+	model.pane = PanePreview
+	model.previewState = stateReady
+	model.items = []domain.Item{{ID: "legacy/", Name: "legacy/"}}
+	model.preview = domain.Preview{
+		Rows:    []domain.Row{{ID: "path", Label: "Path", Value: "legacy/"}},
+		Actions: []domain.Action{{ID: "browse", Label: "Browse values", Enabled: true}},
+	}
+
+	_, cmd := model.activate()
+	if cmd == nil || model.mode != modeBrowserLoading || backend.loadEditors != 0 {
+		t.Fatalf("Path activation did not open browser directly: mode=%v cmd=%v editors=%d", model.mode, cmd, backend.loadEditors)
+	}
+	model.handleBrowserLoaded(cmd().(browserLoadedMsg))
+	if model.mode != modeBrowser || model.browserTitle() != "legacy/" {
+		t.Fatalf("browser root = mode %v title %q", model.mode, model.browserTitle())
+	}
+	model.handleBrowserKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if model.mode != modeBrowse || model.pane != PanePreview || model.detailIndex != 0 {
+		t.Fatalf("Esc from root did not return to Path preview: mode=%v pane=%v detail=%d", model.mode, model.pane, model.detailIndex)
 	}
 }

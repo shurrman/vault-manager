@@ -59,11 +59,19 @@ type Item struct {
 	Subtitle string
 }
 
+type Severity string
+
+const (
+	SeverityNormal Severity = ""
+	SeverityDanger Severity = "danger"
+)
+
 type Row struct {
 	ID       string
 	Label    string
 	Value    string
 	Editable bool
+	Severity Severity
 }
 
 type Action struct {
@@ -80,7 +88,27 @@ type Preview struct {
 	Actions  []Action
 }
 
+type BrowserEntry struct {
+	Name      string
+	Path      string
+	Directory bool
+}
+
+type BrowserPage struct {
+	Title       string
+	Path        string
+	DisplayPath string
+	Leaf        bool
+	Entries     []BrowserEntry
+	Rows        []Row
+}
+
 type Backend interface {
 	List(context.Context, Section) ([]Item, error)
 	Preview(context.Context, Section, Item) (Preview, error)
+}
+
+type BrowserBackend interface {
+	Backend
+	Browse(context.Context, Section, Item, string, bool) (BrowserPage, error)
 }

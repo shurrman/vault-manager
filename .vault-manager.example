@@ -1,10 +1,11 @@
 [vault]
-address = "https://vault.example.com:8200"
+address = "http://vault.wsoft:8400"
 token = "replace-me"
 request_timeout = "10s"
 
 [ui]
 color = "auto"
+language = "en"
 
 # Optional installation-specific warning shown in the user membership editor.
 # [deployment]

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,7 +27,8 @@ type Vault struct {
 }
 
 type UI struct {
-	Color string `toml:"color"`
+	Color    string `toml:"color"`
+	Language string `toml:"language"`
 }
 
 type Deployment struct {
@@ -35,7 +37,11 @@ type Deployment struct {
 
 func Load(path string) (Config, error) {
 	if path == "" {
-		path = DefaultPath
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Config{}, fmt.Errorf("resolve home directory: %w", err)
+		}
+		path = filepath.Join(home, DefaultPath)
 	}
 
 	info, err := os.Stat(path)
@@ -84,9 +90,14 @@ func (c Config) Validate() error {
 	}
 	switch c.UI.Color {
 	case "auto", "always", "never":
-		return nil
 	default:
 		return errors.New("ui.color must be auto, always, or never")
+	}
+	switch c.UI.Language {
+	case "en", "ru", "es", "zh":
+		return nil
+	default:
+		return errors.New("ui.language must be en, ru, es, or zh")
 	}
 }
 
@@ -104,5 +115,8 @@ func applyDefaults(c *Config) {
 	}
 	if c.UI.Color == "" {
 		c.UI.Color = "auto"
+	}
+	if c.UI.Language == "" {
+		c.UI.Language = "en"
 	}
 }

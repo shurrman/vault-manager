@@ -140,3 +140,106 @@ token = "test-token"
 		t.Fatalf("vault.address = %q", cfg.Vault.Address)
 	}
 }
+
+func TestLoadForStartupAllowsMissingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultPath)
+	source, err := LoadForStartup(path)
+	if err != nil {
+		t.Fatalf("LoadForStartup() error = %v", err)
+	}
+	if source.Exists || source.Path != path {
+		t.Fatalf("source = %#v", source)
+	}
+	if source.Config.Vault.RequestTimeout != "10s" || source.Config.UI.Color != "auto" || source.Config.UI.Language != "en" {
+		t.Fatalf("defaults not applied: %#v", source.Config)
+	}
+}
+
+func TestLoadForStartupAllowsMissingRequiredValues(t *testing.T) {
+	path := writeConfig(t, 0o600, `[ui]
+language = "ru"
+`)
+	source, err := LoadForStartup(path)
+	if err != nil {
+		t.Fatalf("LoadForStartup() error = %v", err)
+	}
+	if !source.Exists || source.Config.UI.Language != "ru" {
+		t.Fatalf("source = %#v", source)
+	}
+	if err := source.Config.Validate(); err == nil || !strings.Contains(err.Error(), "vault.address") {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestLoadForStartupRejectsInvalidPresentAddress(t *testing.T) {
+	path := writeConfig(t, 0o600, `[vault]
+address = "not-a-url"
+`)
+	if _, err := LoadForStartup(path); err == nil || !strings.Contains(err.Error(), "absolute http") {
+		t.Fatalf("LoadForStartup() error = %v", err)
+	}
+}
+
+func TestLoadForStartupRejectsOpenPermissions(t *testing.T) {
+	path := writeConfig(t, 0o644, `[vault]
+address = "http://vault.wsoft:8400"
+`)
+	if _, err := LoadForStartup(path); err == nil || !strings.Contains(err.Error(), "group or others") {
+		t.Fatalf("LoadForStartup() error = %v", err)
+	}
+}
+
+func TestLoadForStartupRejectsUnknownFields(t *testing.T) {
+	path := writeConfig(t, 0o600, `[vault]
+unexpected = true
+`)
+	if _, err := LoadForStartup(path); err == nil {
+		t.Fatalf("LoadForStartup() error = %v", err)
+	}
+}
+
+func TestSaveNewCreatesOwnerOnlyConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), DefaultPath)
+	cfg := Config{
+		Vault: Vault{Address: "http://vault.wsoft:8400", Token: "test-token", RequestTimeout: "10s"},
+		UI:    UI{Color: "auto", Language: "ru"},
+	}
+	if err := SaveNew(path, cfg); err != nil {
+		t.Fatalf("SaveNew() error = %v", err)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat saved config: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("saved mode = %o", info.Mode().Perm())
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load(saved) error = %v", err)
+	}
+	if loaded.Vault.Address != cfg.Vault.Address || loaded.Vault.Token != cfg.Vault.Token || loaded.UI.Language != "ru" {
+		t.Fatalf("saved config = %#v", loaded)
+	}
+}
+
+func TestSaveNewDoesNotOverwriteExistingFile(t *testing.T) {
+	path := writeConfig(t, 0o600, `[vault]
+address = "http://original.example:8200"
+token = "original-token"
+`)
+	cfg := Config{
+		Vault: Vault{Address: "http://replacement.example:8200", Token: "replacement-token", RequestTimeout: "10s"},
+		UI:    UI{Color: "auto", Language: "en"},
+	}
+	if err := SaveNew(path, cfg); err == nil {
+		t.Fatal("SaveNew() overwrote an existing file")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read original config: %v", err)
+	}
+	if !strings.Contains(string(data), "original-token") || strings.Contains(string(data), "replacement-token") {
+		t.Fatal("existing config content changed")
+	}
+}

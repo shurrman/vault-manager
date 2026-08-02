@@ -1,5 +1,9 @@
 # Changes
 
+## Unreleased
+
+- Added an interactive first-run configuration dialog with keyboard language selection, URL validation, masked token input, and owner-only no-overwrite config creation.
+
 ## 0.3
 
 - Resolved the default configuration path from the user's home directory instead of the process working directory.

@@ -125,6 +125,15 @@ directorio de trabajo actual. La configuración se rechaza si el grupo u otros
 usuarios pueden leerla. Tanto `.vault-manager` como `.env` están excluidos de
 Git.
 
+Si el archivo no existe y la aplicación se ejecuta en un terminal interactivo,
+el diálogo inicial permite seleccionar con el teclado `en`, `ru`, `es` o `zh`,
+y después solicita la URL de Vault y un token oculto. Tras validar todos los
+valores, crea la ruta elegida como un archivo nuevo con permisos `0600`; nunca
+sobrescribe un archivo que aparezca simultáneamente. Si una configuración
+existente omite la URL o el token, el diálogo solicita solo los valores que
+faltan y los usa durante la ejecución actual sin reescribir el archivo. Las
+ejecuciones no interactivas requieren una configuración completa.
+
 Una instalación que sincronice la pertenencia a grupos desde otro sistema
 puede añadir un aviso local sin modificar la aplicación:
 

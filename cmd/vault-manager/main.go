@@ -32,7 +32,7 @@ func run() int {
 		return 0
 	}
 
-	cfg, err := config.Load(*configPath)
+	cfg, err := loadStartupConfig(*configPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "configuration error:", err)
 		return 2

@@ -36,6 +36,13 @@ When `--config` is omitted, the configuration adapter resolves
 directory. An explicit `--config` path is used as provided. Configuration files
 must remain owner-only because they contain the Vault token.
 
+The startup adapter distinguishes an absent file from a malformed or insecure
+one. In an interactive terminal, an absent file opens a language/URL/token setup
+model and is created only after full validation with `0600` permissions and
+exclusive-create semantics. Existing incomplete files can be completed in
+memory for the current run but are not rewritten, preserving comments and
+operator formatting. Non-interactive startup requires a complete file.
+
 ## Three-pane model
 
 The left pane contains `Status`, `Groups`, `Users`, `Policies`, `Engines`,

@@ -120,6 +120,15 @@ of its current working directory. The configuration is rejected if it is
 readable by group or others. Both `.vault-manager` and `.env` are excluded
 from Git.
 
+When the configuration file does not exist in an interactive terminal, an
+initial setup dialog first offers `en`, `ru`, `es`, and `zh` in a keyboard
+selectable list, then asks for the Vault URL and a masked token. After full
+validation, it creates the selected configuration path as a new owner-only
+`0600` file. A file that appears concurrently is never overwritten. If an
+existing configuration omits the URL or token, the dialog asks only for the
+missing values and uses them for the current run without rewriting the file.
+Non-interactive runs require a complete configuration.
+
 An installation that synchronizes membership from another system can add a
 local warning without changing the application:
 

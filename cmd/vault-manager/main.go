@@ -15,7 +15,7 @@ import (
 	"vault-manager/internal/vaultapi"
 )
 
-var version = "0.3"
+var version = "0.4"
 
 func main() {
 	os.Exit(run())

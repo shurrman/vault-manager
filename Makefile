@@ -1,7 +1,7 @@
 GO ?= go
 PYTHON ?= python3
 BINARY ?= bin/vault-manager
-VERSION ?= 0.3
+VERSION ?= 0.4
 DIST_DIR ?= dist
 RELEASE_PREFIX := vault-manager_$(VERSION)
 RELEASE_ARCHIVES := \

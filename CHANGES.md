@@ -1,6 +1,6 @@
 # Changes
 
-## Unreleased
+## 0.4
 
 - Added an interactive first-run configuration dialog with keyboard language selection, URL validation, masked token input, and owner-only no-overwrite config creation.
 

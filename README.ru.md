@@ -60,6 +60,26 @@ Auth Methods, Audit и Tokens:
 Язык TUI задаётся параметром `ui.language`: `en`, `ru`, `es` или `zh`. Если он
 не указан, используется `en`.
 
+## Установка
+
+Linux и macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shurrman/vault-manager/main/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/shurrman/vault-manager/main/install.ps1 | iex
+```
+
+Инсталлятор выбирает последний релиз для текущей ОС и архитектуры и проверяет
+его SHA-256 перед установкой. В Linux и macOS используется `/usr/local/bin`,
+если он доступен для записи, иначе `~/.local/bin`. В Windows используется
+`%LOCALAPPDATA%\Programs\vault-manager`, и этот каталог добавляется в
+пользовательский `PATH`.
+
 ## Сборка
 
 Для разработки требуется Go 1.25 или новее. Обычная сборка создаёт статический

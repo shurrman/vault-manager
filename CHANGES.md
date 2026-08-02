@@ -1,5 +1,9 @@
 # Changes
 
+## Unreleased
+
+- Added checksum-verified one-line installers for Linux, macOS, and Windows.
+
 ## 0.4
 
 - Added an interactive first-run configuration dialog with keyboard language selection, URL validation, masked token input, and owner-only no-overwrite config creation.

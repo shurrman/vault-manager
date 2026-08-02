@@ -59,6 +59,26 @@ defaults to `en` when omitted.
 Destructive actions open a confirmation screen with Cancel selected by default;
 Vault still enforces the caller's ACL capabilities for every operation.
 
+## Install
+
+Linux and macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shurrman/vault-manager/main/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/shurrman/vault-manager/main/install.ps1 | iex
+```
+
+The installer selects the latest release for the current OS and architecture
+and verifies its SHA-256 checksum before installation. On Linux and macOS it
+uses `/usr/local/bin` when writable, otherwise `~/.local/bin`. On Windows it
+uses `%LOCALAPPDATA%\Programs\vault-manager` and adds that directory to the
+user `PATH`.
+
 ## Build
 
 Go 1.25 or newer is required for development. The default build produces a

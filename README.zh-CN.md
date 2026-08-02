@@ -56,6 +56,25 @@ Auth Methods、Audit 和 Tokens：
 TUI 语言由 `ui.language` 设置，可选 `en`、`ru`、`es` 或 `zh`；未设置时
 默认为 `en`。
 
+## 安装
+
+Linux 和 macOS：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shurrman/vault-manager/main/install.sh | sh
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://raw.githubusercontent.com/shurrman/vault-manager/main/install.ps1 | iex
+```
+
+安装程序会为当前操作系统和架构选择最新版本，并在安装前验证 SHA-256
+校验和。在 Linux 和 macOS 上，如果 `/usr/local/bin` 可写则使用该目录，
+否则使用 `~/.local/bin`。在 Windows 上使用
+`%LOCALAPPDATA%\Programs\vault-manager`，并将该目录加入用户 `PATH`。
+
 ## 构建
 
 开发需要 Go 1.25 或更高版本。默认构建会生成使用基础 x86-64 指令集的静态

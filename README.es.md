@@ -61,6 +61,26 @@ confirmación y otra vez antes de escribir en la API, indicando línea y columna
 El idioma del TUI se define con `ui.language`: `en`, `ru`, `es` o `zh`. Si se
 omite, el valor predeterminado es `en`.
 
+## Instalación
+
+Linux y macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shurrman/vault-manager/main/install.sh | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/shurrman/vault-manager/main/install.ps1 | iex
+```
+
+El instalador selecciona la versión más reciente para el sistema operativo y
+la arquitectura actuales y verifica su suma SHA-256 antes de instalarla. En
+Linux y macOS usa `/usr/local/bin` si se puede escribir allí; en caso contrario,
+usa `~/.local/bin`. En Windows usa `%LOCALAPPDATA%\Programs\vault-manager` y
+añade ese directorio al `PATH` del usuario.
+
 ## Compilación
 
 Para el desarrollo se necesita Go 1.25 o posterior. La compilación

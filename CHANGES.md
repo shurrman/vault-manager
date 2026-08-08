@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5
+
 - Added an editable-URL login dialog for token and userpass authentication,
   automatic invalid-session prompting, persisted issued tokens, and the current
   authenticated user in the header.

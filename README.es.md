@@ -16,7 +16,7 @@ clúster de HashiCorp Vault. Se comunica únicamente con la API HTTP de Vault:
 no requiere fuentes de identidad externas, sistemas de aprovisionamiento ni
 sincronización específica de una instalación.
 
-Versión actual: `0.4`.
+Versión actual: `0.5`.
 
 Los archivos precompilados y sus sumas de comprobación están disponibles en la
 [página de GitHub Releases](https://github.com/shurrman/vault-manager/releases/latest).
@@ -33,7 +33,7 @@ ID y accessors de Vault siguen disponibles en la vista previa cuando resultan
 
 ## Funcionalidad actual
 
-La versión 0.4 gestiona Status, Groups, Users, Policies, Engines, SSH,
+La versión 0.5 gestiona Status, Groups, Users, Policies, Engines, SSH,
 Auth Methods, Audit y Tokens:
 
 | Área | Acciones disponibles |
@@ -103,11 +103,11 @@ make release
 
 | SO | Arquitectura | Archivo |
 | --- | --- | --- |
-| Linux | amd64 | `vault-manager_0.4_linux_amd64.tar.gz` |
-| Linux | arm64 | `vault-manager_0.4_linux_arm64.tar.gz` |
-| macOS | amd64 | `vault-manager_0.4_darwin_amd64.tar.gz` |
-| macOS | arm64 | `vault-manager_0.4_darwin_arm64.tar.gz` |
-| Windows | amd64 | `vault-manager_0.4_windows_amd64.zip` |
+| Linux | amd64 | `vault-manager_0.5_linux_amd64.tar.gz` |
+| Linux | arm64 | `vault-manager_0.5_linux_arm64.tar.gz` |
+| macOS | amd64 | `vault-manager_0.5_darwin_amd64.tar.gz` |
+| macOS | arm64 | `vault-manager_0.5_darwin_arm64.tar.gz` |
+| Windows | amd64 | `vault-manager_0.5_windows_amd64.zip` |
 
 Todos los binarios utilizan `CGO_ENABLED=0`; las compilaciones amd64 usan
 `GOAMD64=v1` y las arm64 usan el nivel básico `GOARM64=v8.0`.

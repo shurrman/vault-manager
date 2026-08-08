@@ -3,6 +3,17 @@
 [English](README.md) · [Русский](README.ru.md) · [Español](README.es.md) ·
 [简体中文](README.zh-CN.md)
 
+## Table of contents
+
+- [Current scope](#current-scope)
+- [Install](#install)
+- [Build](#build)
+- [Configuration](#configuration)
+- [Run](#run)
+- [Keyboard controls](#keyboard-controls)
+- [Membership and save safety](#membership-and-save-safety)
+- [Development checks](#development-checks)
+
 **Hierarchical value browser**
 
 ![vault-manager hierarchical value browser](docs/images/vault-manager-browser.svg)

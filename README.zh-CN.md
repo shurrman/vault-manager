@@ -3,6 +3,17 @@
 [English](README.md) · [Русский](README.ru.md) · [Español](README.es.md) ·
 [简体中文](README.zh-CN.md)
 
+## 目录
+
+- [当前功能](#当前功能)
+- [安装](#安装)
+- [构建](#构建)
+- [配置](#配置)
+- [运行](#运行)
+- [键盘操作](#键盘操作)
+- [成员关系与保存安全](#成员关系与保存安全)
+- [开发检查](#开发检查)
+
 **分层值浏览器**
 
 ![vault-manager 分层值浏览器](docs/images/vault-manager-browser.svg)

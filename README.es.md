@@ -3,6 +3,17 @@
 [English](README.md) · [Русский](README.ru.md) · [Español](README.es.md) ·
 [简体中文](README.zh-CN.md)
 
+## Contenido
+
+- [Funcionalidad actual](#funcionalidad-actual)
+- [Instalación](#instalación)
+- [Compilación](#compilación)
+- [Configuración](#configuración)
+- [Ejecución](#ejecución)
+- [Controles de teclado](#controles-de-teclado)
+- [Pertenencia a grupos y seguridad al guardar](#pertenencia-a-grupos-y-seguridad-al-guardar)
+- [Comprobaciones de desarrollo](#comprobaciones-de-desarrollo)
+
 **Explorador jerárquico de valores**
 
 ![Explorador jerárquico de valores de vault-manager](docs/images/vault-manager-browser.svg)

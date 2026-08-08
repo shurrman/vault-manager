@@ -316,8 +316,8 @@ func TestNoColorUsesTextMarkersAndShowsDisabledControls(t *testing.T) {
 func TestFooterMentionsTabNavigation(t *testing.T) {
 	model := New(&fakeBackend{}, "never")
 	footer := model.footerText()
-	if !strings.Contains(footer, "Tab/Shift+Tab") {
-		t.Fatalf("footer does not mention Tab navigation: %q", footer)
+	if !strings.Contains(footer, "Tab/Shift+Tab") || !strings.Contains(footer, "l login") {
+		t.Fatalf("footer does not mention Tab or login navigation: %q", footer)
 	}
 }
 

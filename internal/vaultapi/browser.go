@@ -11,6 +11,8 @@ import (
 )
 
 func (c *Client) Browse(ctx context.Context, section domain.Section, item domain.Item, relative string, read bool) (domain.BrowserPage, error) {
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
 	if section != domain.SectionEngines {
 		return domain.BrowserPage{}, errors.New("hierarchical browsing is not available for this section")
 	}

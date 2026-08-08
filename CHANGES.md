@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added an editable-URL login dialog for token and userpass authentication,
+  automatic invalid-session prompting, persisted issued tokens, and the current
+  authenticated user in the header.
 - Added checksum-verified one-line installers for Linux, macOS, and Windows.
 
 ## 0.4

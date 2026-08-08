@@ -149,6 +149,17 @@ existing configuration omits the URL or token, the dialog asks only for the
 missing values and uses them for the current run without rewriting the file.
 Non-interactive runs require a complete configuration.
 
+At startup, the configured token is verified with `auth/token/lookup-self`.
+An authentication failure opens the login dialog automatically; press `l` to
+open it at any other time. The Vault URL is editable, and the authentication
+method is selected from `userpass` and `token`. Userpass uses the standard
+`auth/userpass/` mount and requests a new Vault token with the entered username
+and password. After either method succeeds, the verified URL and token are
+atomically written to the owner-only configuration file and the authenticated
+username or token display name is shown in the header. Passwords are never
+stored. Saving credentials normalizes the TOML file, so comments and custom
+formatting are not preserved.
+
 An installation that synchronizes membership from another system can add a
 local warning without changing the application:
 
@@ -184,6 +195,7 @@ write operations.
 - `Tab`/`Shift+Tab`: move to the pane on the right/left; `Tab` from the
   middle pane selects the first action in the preview;
 - `Enter`: activate an item, action, or editor field;
+- `l`: open the login dialog;
 - in comma-separated list fields, `↑`/`↓` choose a filtered suggestion and
   `Enter` or `Tab` inserts it;
 - on an Engines `Path` row, `Enter` opens value browsing directly; inside it,

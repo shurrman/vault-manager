@@ -243,3 +243,45 @@ token = "original-token"
 		t.Fatal("existing config content changed")
 	}
 }
+
+func TestSaveCredentialsUpdatesOnlyVaultCredentials(t *testing.T) {
+	path := writeConfig(t, 0o600, "[vault]\naddress = \"http://old.example:8200\"\ntoken = \"old-token\"\nrequest_timeout = \"17s\"\n\n[ui]\ncolor = \"never\"\nlanguage = \"ru\"\n\n[deployment]\nmembership_notice = \"managed elsewhere\"\n")
+	if err := SaveCredentials(path, "http://new.example:8400", "new-token"); err != nil {
+		t.Fatalf("SaveCredentials() error = %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load(updated) error = %v", err)
+	}
+	if cfg.Vault.Address != "http://new.example:8400" || cfg.Vault.Token != "new-token" {
+		t.Fatalf("updated credentials = address %q token changed=%v", cfg.Vault.Address, cfg.Vault.Token == "new-token")
+	}
+	if cfg.Vault.RequestTimeout != "17s" || cfg.UI.Color != "never" || cfg.UI.Language != "ru" || cfg.Deployment.MembershipNotice != "managed elsewhere" {
+		t.Fatalf("unrelated configuration changed: %#v", cfg)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat updated config: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("updated config mode = %o", info.Mode().Perm())
+	}
+}
+
+func TestSaveCredentialsRejectsInvalidValuesWithoutChangingFile(t *testing.T) {
+	path := writeConfig(t, 0o600, "[vault]\naddress = \"http://old.example:8200\"\ntoken = \"old-token\"\n")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read before update: %v", err)
+	}
+	if err := SaveCredentials(path, "not-a-url", "new-token"); err == nil {
+		t.Fatal("SaveCredentials() accepted an invalid address")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read after update: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("invalid credentials changed the config")
+	}
+}

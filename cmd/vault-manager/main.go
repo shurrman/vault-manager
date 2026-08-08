@@ -32,12 +32,13 @@ func run() int {
 		return 0
 	}
 
-	cfg, err := loadStartupConfig(*configPath)
+	startup, err := loadStartupConfig(*configPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "configuration error:", err)
 		return 2
 	}
-	client, err := vaultapi.New(cfg)
+	cfg := startup.Config
+	client, err := vaultapi.New(cfg, startup.Path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Vault client error:", err)
 		return 2

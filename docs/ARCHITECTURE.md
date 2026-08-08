@@ -43,12 +43,26 @@ exclusive-create semantics. Existing incomplete files can be completed in
 memory for the current run but are not rewritten, preserving comments and
 operator formatting. Non-interactive startup requires a complete file.
 
+Before the main section load, the session adapter verifies the configured token
+with `auth/token/lookup-self`. HTTP 401/403 opens the login model; transport
+errors remain ordinary connection failures. The model accepts an editable Vault
+URL and either a token or credentials for the standard `auth/userpass/` mount.
+After the resulting token passes lookup-self, the configuration adapter writes
+the URL and token through a synced owner-only temporary file and atomically
+replaces the configured path. Passwords are submitted only to Vault and are
+never written to configuration or rendered. Public backend operations hold a
+shared session lock, while a successful login takes the exclusive lock before
+replacing the client and clearing identity caches.
+
 ## Three-pane model
 
 The left pane contains `Status`, `Groups`, `Users`, `Policies`, `Engines`,
 `SSH`, `Auth Methods`, `Audit`, and `Tokens`. The middle pane contains the
 selected section's items. The right pane contains the selected item's
 properties, relationships, and editor.
+
+The header includes the current username from token metadata, falling back to
+Vault's token `display_name`. It never includes the token itself.
 
 Two states are always distinguishable:
 

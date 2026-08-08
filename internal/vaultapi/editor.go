@@ -17,6 +17,8 @@ import (
 )
 
 func (c *Client) LoadEditor(ctx context.Context, section domain.Section, item domain.Item, actionID string) (domain.Editor, error) {
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
 	var (
 		editor domain.Editor
 		err    error
@@ -41,6 +43,8 @@ func (c *Client) LoadEditor(ctx context.Context, section domain.Section, item do
 }
 
 func (c *Client) SaveEditor(ctx context.Context, editor domain.Editor) (domain.Preview, error) {
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
 	var (
 		preview domain.Preview
 		err     error

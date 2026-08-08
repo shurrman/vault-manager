@@ -24,6 +24,8 @@ const (
 	modeEditing
 	modeConfirm
 	modeSaving
+	modeLogin
+	modeLoggingIn
 )
 
 type editorState struct {
@@ -570,6 +572,10 @@ func (m *Model) editorTitle() string {
 
 func (m *Model) footerText() string {
 	switch m.mode {
+	case modeLogin:
+		return m.text.Text("Tab field  ↑↓ method  Enter continue/login  Ctrl+S login  Esc cancel")
+	case modeLoggingIn:
+		return m.text.Text("Authenticating and saving credentials…")
 	case modeBrowserLoading:
 		return m.text.Text("Loading values…")
 	case modeBrowser:
@@ -589,7 +595,7 @@ func (m *Model) footerText() string {
 	case modeEditorLoading:
 		return m.text.Text("Opening editor…")
 	default:
-		return m.text.Text("Tab/Shift+Tab or ←→ pane  ↑↓ move  Enter activate  r refresh  ? help  q quit")
+		return m.text.Text("Tab/Shift+Tab or ←→ pane  ↑↓ move  Enter activate  l login  r refresh  ? help  q quit")
 	}
 }
 

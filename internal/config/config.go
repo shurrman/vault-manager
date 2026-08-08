@@ -102,6 +102,54 @@ func SaveNew(path string, cfg Config) error {
 	return nil
 }
 
+func SaveCredentials(path, address, token string) error {
+	cfg, _, err := loadFile(path, false)
+	if err != nil {
+		return err
+	}
+	cfg.Vault.Address = address
+	cfg.Vault.Token = token
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("encode config: %w", err)
+	}
+
+	directory := filepath.Dir(path)
+	temporary, err := os.CreateTemp(directory, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create temporary config: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	cleanup := func() {
+		_ = temporary.Close()
+		_ = os.Remove(temporaryPath)
+	}
+	if err := temporary.Chmod(0o600); err != nil {
+		cleanup()
+		return fmt.Errorf("secure temporary config: %w", err)
+	}
+	if _, err := temporary.Write(data); err != nil {
+		cleanup()
+		return fmt.Errorf("write temporary config: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		cleanup()
+		return fmt.Errorf("sync temporary config: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		_ = os.Remove(temporaryPath)
+		return fmt.Errorf("close temporary config: %w", err)
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		_ = os.Remove(temporaryPath)
+		return fmt.Errorf("replace config: %w", err)
+	}
+	return nil
+}
+
 func (c Config) Validate() error {
 	if strings.TrimSpace(c.Vault.Address) == "" {
 		return errors.New("vault.address is required")

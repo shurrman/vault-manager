@@ -53,11 +53,15 @@ type Model struct {
 	previewRequestID uint64
 	editorRequestID  uint64
 	browserRequestID uint64
+	authRequestID    uint64
 	status           string
+	sessionUser      string
+	sessionCheckErr  string
 
 	mode    appMode
 	editor  editorState
 	browser browserState
+	login   loginState
 }
 
 type listLoadedMsg struct {
@@ -93,6 +97,9 @@ func New(backend domain.Backend, colorMode string, languages ...string) *Model {
 }
 
 func (m *Model) Init() tea.Cmd {
+	if _, ok := m.backend.(domain.AuthBackend); ok {
+		return m.checkSession()
+	}
 	return m.loadSection()
 }
 
@@ -101,8 +108,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = typed.Width
 		m.height = typed.Height
+		if m.mode == modeLogin || m.mode == modeLoggingIn {
+			m.resizeLoginInputs()
+		}
 		return m, nil
 	case tea.KeyPressMsg:
+		if m.mode == modeLogin || m.mode == modeLoggingIn {
+			return m.handleLoginKey(typed)
+		}
 		if m.mode == modeBrowserLoading || m.mode == modeBrowser {
 			return m.handleBrowserKey(typed)
 		}
@@ -120,6 +133,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleEditorSaved(typed)
 	case browserLoadedMsg:
 		return m.handleBrowserLoaded(typed)
+	case sessionLoadedMsg:
+		return m.handleSessionLoaded(typed)
+	case loginFinishedMsg:
+		return m.handleLoginFinished(typed)
 	}
 	return m, nil
 }
@@ -151,16 +168,21 @@ func (m *Model) handleKey(key string) (tea.Model, tea.Cmd) {
 	case "end":
 		return m.moveToBoundary(true)
 	case "r":
+		if m.sessionCheckErr != "" {
+			return m, m.checkSession()
+		}
 		if m.pane == PaneSections {
 			return m, m.loadSection()
 		}
 		if len(m.items) > 0 {
 			return m, m.loadPreview()
 		}
+	case "l":
+		return m, m.openLogin(false)
 	case "enter":
 		return m.activate()
 	case "?":
-		m.status = "Tab/Shift+Tab or ←→ switch panes · ↑↓ move · Enter activates · r refreshes · q quits"
+		m.status = "Tab/Shift+Tab or ←→ switch panes · ↑↓ move · Enter activates · l login · r refreshes · q quits"
 	}
 	return m, nil
 }
@@ -388,6 +410,9 @@ func (m *Model) section() domain.Section {
 }
 
 func (m *Model) render() string {
+	if m.mode == modeLogin || m.mode == modeLoggingIn {
+		return m.renderLogin()
+	}
 	if m.width == 0 || m.height == 0 {
 		return m.text.Text("Starting vault-manager…")
 	}
@@ -399,7 +424,12 @@ func (m *Model) render() string {
 	if m.color {
 		headerStyle = headerStyle.Foreground(lipgloss.Color("6"))
 	}
-	header := headerStyle.Render("vault-manager") + "  " + m.text.Text(m.section().Label())
+	header := "vault-manager  " + m.text.Text(m.section().Label())
+	if m.sessionUser != "" {
+		header += "  ·  " + m.text.Text("Authenticated as") + ": " + m.sessionUser
+	}
+	header = truncate(header, m.width)
+	header = headerStyle.Render("vault-manager") + strings.TrimPrefix(header, "vault-manager")
 
 	bodyHeight := m.height - 2
 	leftWidth := max(18, m.width*22/100)

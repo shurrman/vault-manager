@@ -154,6 +154,18 @@ existente omite la URL o el token, el diálogo solicita solo los valores que
 faltan y los usa durante la ejecución actual sin reescribir el archivo. Las
 ejecuciones no interactivas requieren una configuración completa.
 
+Al iniciar, el token configurado se verifica mediante
+`auth/token/lookup-self`. Un error de autenticación abre automáticamente el
+diálogo de inicio de sesión; la tecla `l` lo abre en cualquier otro momento.
+La URL de Vault se puede editar y el método se elige entre `userpass` y
+`token`. Userpass usa el montaje estándar `auth/userpass/` y obtiene un nuevo
+token de Vault con el usuario y la contraseña introducidos. Tras un inicio
+correcto, la URL y el token verificados se escriben atómicamente en la
+configuración accesible solo por el propietario, y el usuario o display name
+del token aparece en la cabecera. La contraseña nunca se guarda. Al guardar
+las credenciales se normaliza el TOML, por lo que no se conservan comentarios
+ni formato personalizado.
+
 Una instalación que sincronice la pertenencia a grupos desde otro sistema
 puede añadir un aviso local sin modificar la aplicación:
 
@@ -190,6 +202,7 @@ primer elemento. No realiza operaciones de escritura.
 - `Tab`/`Shift+Tab`: ir al panel de la derecha o de la izquierda; `Tab`
   desde el panel central selecciona la primera acción de la vista previa;
 - `Enter`: activar un elemento, una acción o un campo del editor;
+- `l`: abrir el diálogo de inicio de sesión;
 - en listas separadas por comas, `↑`/`↓` eligen una sugerencia filtrada y
   `Enter` o `Tab` la inserta;
 - en la fila Engines `Path`, `Enter` abre directamente el explorador; dentro,

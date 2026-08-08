@@ -32,7 +32,7 @@ func TestLoadStartupConfigUsesCompleteFileWithoutTerminal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadStartupConfig() error = %v", err)
 	}
-	if got.Vault.Address != want.Vault.Address || got.Vault.Token != want.Vault.Token || got.UI.Language != want.UI.Language {
+	if got.Path != path || got.Config.Vault.Address != want.Vault.Address || got.Config.Vault.Token != want.Vault.Token || got.Config.UI.Language != want.UI.Language {
 		t.Fatalf("loaded config = %#v", got)
 	}
 }

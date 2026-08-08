@@ -26,6 +26,10 @@ const (
 type Client struct {
 	api *api.Client
 
+	sessionMu  sync.RWMutex
+	cfg        config.Config
+	configPath string
+
 	mu               sync.RWMutex
 	entityNames      map[string]string
 	groupNames       map[string]string
@@ -47,7 +51,28 @@ type userRef struct {
 	Username string
 }
 
-func New(cfg config.Config) (*Client, error) {
+func New(cfg config.Config, configPaths ...string) (*Client, error) {
+	client, err := newAPIClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+	configPath := ""
+	if len(configPaths) > 0 {
+		configPath = configPaths[0]
+	}
+	return &Client{
+		api:              client,
+		cfg:              cfg,
+		configPath:       configPath,
+		entityNames:      make(map[string]string),
+		groupNames:       make(map[string]string),
+		authByAccessor:   make(map[string]authMount),
+		userRefs:         make(map[string]userRef),
+		membershipNotice: strings.TrimSpace(cfg.Deployment.MembershipNotice),
+	}, nil
+}
+
+func newAPIClient(cfg config.Config) (*api.Client, error) {
 	timeout, err := cfg.Timeout()
 	if err != nil {
 		return nil, err
@@ -60,17 +85,12 @@ func New(cfg config.Config) (*Client, error) {
 		return nil, fmt.Errorf("create Vault client: %w", err)
 	}
 	client.SetToken(cfg.Vault.Token)
-	return &Client{
-		api:              client,
-		entityNames:      make(map[string]string),
-		groupNames:       make(map[string]string),
-		authByAccessor:   make(map[string]authMount),
-		userRefs:         make(map[string]userRef),
-		membershipNotice: strings.TrimSpace(cfg.Deployment.MembershipNotice),
-	}, nil
+	return client, nil
 }
 
 func (c *Client) List(ctx context.Context, section domain.Section) ([]domain.Item, error) {
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
 	var (
 		items []domain.Item
 		err   error
@@ -112,6 +132,8 @@ func (c *Client) List(ctx context.Context, section domain.Section) ([]domain.Ite
 }
 
 func (c *Client) Preview(ctx context.Context, section domain.Section, item domain.Item) (domain.Preview, error) {
+	c.sessionMu.RLock()
+	defer c.sessionMu.RUnlock()
 	var (
 		preview domain.Preview
 		err     error
